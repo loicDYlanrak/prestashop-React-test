@@ -2,23 +2,56 @@ import { useState } from "react";
 import { convertToPrestashopXML } from "../utils/BuilderXml";
 import { parsePrestashopXML } from "../utils/ParserXml";
 
-export function useAddCategory() {
+const DEFAULT_CONFIG = {
+  apiKey: "Q3971RIRQJVRL981S2KCEGBBMWILW8H1",
+  baseUrl: "http://localhost/prestashop/api"
+};
+
+const RESOURCE_ENDPOINTS = {
+  category: "categories",
+  product: "products",
+  customer: "customers",
+  manufacturer: "manufacturers",
+  supplier: "suppliers"
+};
+
+const MULTILANG_FIELDS = {
+  category: ['name', 'link_rewrite', 'description', 'meta_title', 'meta_description', 'meta_keywords'],
+  product: ['name', 'link_rewrite', 'description', 'description_short', 'meta_title', 'meta_description', 'meta_keywords'],
+  customer: [],
+  manufacturer: ['name'],
+  supplier: ['name']
+};
+
+/**
+ * Hook générique pour ajouter n'importe quelle ressource PrestaShop
+ * @param {string} resourceType - Type de ressource ('category', 'product', 'customer', 'manufacturer', 'supplier')
+ * @param {Object} customConfig - Configuration personnalisée (optionnelle)
+ * @returns {Object} - { addResource, loading, error, data }
+ */
+export function useAddResource(resourceType, customConfig = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
 
-  const addCategory = async (categoryData, languageId = 1) => {
+  const config = { ...DEFAULT_CONFIG, ...customConfig };
+  const endpoint = RESOURCE_ENDPOINTS[resourceType];
+  const multilangFields = MULTILANG_FIELDS[resourceType] || [];
+
+  if (!endpoint) {
+    throw new Error(`Resource type "${resourceType}" not supported. Supported types: ${Object.keys(RESOURCE_ENDPOINTS).join(', ')}`);
+  }
+
+  const addResource = async (resourceData, languageId = 1) => {
     setLoading(true);
     setError(null);
     
     try {
-      const apiKey = "Q3971RIRQJVRL981S2KCEGBBMWILW8H1";
-      const baseUrl = "http://localhost/prestashop/api";
-      const url = `${baseUrl}/categories?ws_key=${apiKey}`;
+      const url = `${config.baseUrl}/${endpoint}?ws_key=${config.apiKey}`;
       
       const prestashopData = {
         prestashop: {
-          category: categoryData
+          [resourceType]: resourceData
         }
       };
       
@@ -27,9 +60,8 @@ export function useAddCategory() {
         "prestashop",
         true,
         languageId,
-        ['name', 'link_rewrite', 'description', 'meta_title', 'meta_description', 'meta_keywords']
+        multilangFields
       );
-    //   console.log(xml);
       
       const response = await fetch(url, {
         method: "POST",
@@ -41,10 +73,8 @@ export function useAddCategory() {
       });
       
       if (!response.ok) {
-        // console.log("response ",response);
-        // throw new Error(`HTTP error! status: ${response.status}`);
-        console.log("Tout se passe comme prevue , verifie la liste");
-        
+        const errorText = await response.text();
+        console.warn(`HTTP ${response.status}: ${errorText}`);
       }
       
       const responseText = await response.text();
@@ -62,265 +92,34 @@ export function useAddCategory() {
   };
   
   return {
-    addCategory,
+    addResource,
     loading,
     error,
     data
   };
+}
+
+export function useAddCategory() {
+  const { addResource, loading, error, data } = useAddResource('category');
+  return { addCategory: addResource, loading, error, data };
 }
 
 export function useAddProduct() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [data, setData] = useState(null);
-
-  const addProduct = async (productData, languageId = 1) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const apiKey = "Q3971RIRQJVRL981S2KCEGBBMWILW8H1";
-      const baseUrl = "http://localhost/prestashop/api";
-      const url = `${baseUrl}/products?ws_key=${apiKey}`;
-      
-      const prestashopData = {
-        prestashop: {
-          product: productData
-        }
-      };
-      
-      const xml = convertToPrestashopXML(
-        prestashopData,
-        "prestashop",
-        true,
-        languageId,
-        ['name', 'link_rewrite', 'description', 'description_short', 'meta_title', 'meta_description', 'meta_keywords']
-      );
-      // console.log(xml);
-      
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/xml",
-          "Accept": "application/xml"
-        },
-        body: xml,
-        mode: "no-cors"
-      });
-      
-      if (!response.ok) {
-        // console.log("response ",response);
-        // throw new Error(`HTTP error! status: ${response.status}`);
-        console.log("Tout se passe comme prevue , verifie la liste");
-      }
-      const responseText = await response.text();
-      const parsedResponse = await parsePrestashopXML(responseText);
-      
-      setData(parsedResponse);
-      return parsedResponse;
-      
-    } catch (err) {
-      setError(err.message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  return {
-    addProduct,
-    loading,
-    error,
-    data
-  };
+  const { addResource, loading, error, data } = useAddResource('product');
+  return { addProduct: addResource, loading, error, data };
 }
 
 export function useAddCustomer() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [data, setData] = useState(null);
-
-  const addCustomer = async (customerData, languageId = 1) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const apiKey = "Q3971RIRQJVRL981S2KCEGBBMWILW8H1";
-      const baseUrl = "http://localhost/prestashop/api";
-      const url = `${baseUrl}/customers?ws_key=${apiKey}`;
-      
-      const prestashopData = {
-        prestashop: {
-          customer: customerData
-        }
-      };
-      
-      const xml = convertToPrestashopXML(
-        prestashopData,
-        "prestashop",
-        true,
-        languageId,
-        []
-      );
-      // console.log(xml);
-      
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/xml",
-          "Accept": "application/xml"
-        },
-        body: xml
-      });
-      
-      if (!response.ok) {
-        console.log("Tout se passe comme prevue , verifie la liste");
-      }
-      
-      const responseText = await response.text();
-      const parsedResponse = await parsePrestashopXML(responseText);
-      
-      setData(parsedResponse);
-      return parsedResponse;
-      
-    } catch (err) {
-      setError(err.message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  return {
-    addCustomer,
-    loading,
-    error,
-    data
-  };
+  const { addResource, loading, error, data } = useAddResource('customer');
+  return { addCustomer: addResource, loading, error, data };
 }
 
 export function useAddManufacturer() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [data, setData] = useState(null);
-
-  const addManufacturer = async (manufacturerData, languageId = 1) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const apiKey = "Q3971RIRQJVRL981S2KCEGBBMWILW8H1";
-      const baseUrl = "http://localhost/prestashop/api";
-      const url = `${baseUrl}/manufacturers?ws_key=${apiKey}`;
-      
-      const prestashopData = {
-        prestashop: {
-          manufacturer: manufacturerData
-        }
-      };
-      
-      const xml = convertToPrestashopXML(
-        prestashopData,
-        "prestashop",
-        true,
-        languageId,
-        ['name']
-      );
-      
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/xml",
-          "Accept": "application/xml"
-        },
-        body: xml
-      });
-      
-      if (!response.ok) {
-        console.log("Tout se passe comme prevue , verifie la liste");
-      }
-      
-      const responseText = await response.text();
-      const parsedResponse = await parsePrestashopXML(responseText);
-      
-      setData(parsedResponse);
-      return parsedResponse;
-      
-    } catch (err) {
-      setError(err.message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  return {
-    addManufacturer,
-    loading,
-    error,
-    data
-  };
+  const { addResource, loading, error, data } = useAddResource('manufacturer');
+  return { addManufacturer: addResource, loading, error, data };
 }
 
 export function useAddSupplier() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [data, setData] = useState(null);
-
-  const addSupplier = async (supplierData, languageId = 1) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const apiKey = "Q3971RIRQJVRL981S2KCEGBBMWILW8H1";
-      const baseUrl = "http://localhost/prestashop/api";
-      const url = `${baseUrl}/suppliers?ws_key=${apiKey}`;
-      
-      const prestashopData = {
-        prestashop: {
-          supplier: supplierData
-        }
-      };
-      
-      const xml = convertToPrestashopXML(
-        prestashopData,
-        "prestashop",
-        true,
-        languageId,
-        ['name']
-      );
-      
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/xml",
-          "Accept": "application/xml"
-        },
-        body: xml
-      });
-      
-      if (!response.ok) {
-        console.log("Tout se passe comme prevue , verifie la liste");
-      }
-      
-      const responseText = await response.text();
-      const parsedResponse = await parsePrestashopXML(responseText);
-      
-      setData(parsedResponse);
-      return parsedResponse;
-      
-    } catch (err) {
-      setError(err.message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  return {
-    addSupplier,
-    loading,
-    error,
-    data
-  };
+  const { addResource, loading, error, data } = useAddResource('supplier');
+  return { addSupplier: addResource, loading, error, data };
 }
