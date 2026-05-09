@@ -38,7 +38,7 @@ const router = createBrowserRouter([
         element: <SearchProduct />,
       },
       {
-        path: "deleteproducts",
+        path: "deletecategories",
         element: <DeleteCategorie />
       },
       {

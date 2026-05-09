@@ -3,7 +3,7 @@ import { useDeleteCategory, useDeleteProduct } from "../hooks/useDeletePrestasho
 export function DeleteCategorie() {
   const { deleteCategory, loading: catLoading, error: catError, data: catData } = useDeleteCategory();
   const { deleteProduct, loading: prodLoading, error: prodError, data: prodData } = useDeleteProduct();
-  const catId = 20;
+  const catId = 21;
   const handleDeleteCategory = async () => {
     try {
       await deleteCategory(catId);
