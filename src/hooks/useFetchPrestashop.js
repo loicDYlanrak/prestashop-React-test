@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { parsePrestashopXML } from "../utils/ParserXml.js";
 
 export async function fetchPrestashop(url, options = {}) {
-  const apiKey = "2LA1668U53GC9T35AIT5Y3P7E8CKG7LL";
-  const baseUrl = "http://localhost/prestashop2/api";
+  const apiKey = "Q3971RIRQJVRL981S2KCEGBBMWILW8H1";
+  const baseUrl = "http://localhost/prestashop/api";
 
   let fullUrl = `${baseUrl}/${url}?ws_key=${apiKey}`;
   if (options.urlRest) {
@@ -44,8 +44,8 @@ export async function fetchPrestashop(url, options = {}) {
 }
 
 export function useFetchPrestashop(url, options = {}) {
-  const apiKey = "2LA1668U53GC9T35AIT5Y3P7E8CKG7LL";
-  const baseUrl = "http://localhost/prestashop2/api";
+  const apiKey = "Q3971RIRQJVRL981S2KCEGBBMWILW8H1";
+  const baseUrl = "http://localhost/prestashop/api";
 
   let urll = `${baseUrl}/${url}?ws_key=${apiKey}`;
   if (options?.urlRest) {
@@ -99,11 +99,11 @@ export const fetchNestedUrls = async (obj, depth = 2, currentDepth = 0) => {
       if (href && !href.endsWith("/0") && !shouldSkip) {
         try {
           const itemUrl = value["@_href"].replace(
-            "http://localhost/prestashop2/api/",
+            "http://localhost/prestashop/api/",
             "",
           );
-          const apiKey = "2LA1668U53GC9T35AIT5Y3P7E8CKG7LL";
-          const baseUrl = "http://localhost/prestashop2/api";
+          const apiKey = "Q3971RIRQJVRL981S2KCEGBBMWILW8H1";
+          const baseUrl = "http://localhost/prestashop/api";
           const fullUrl = `${baseUrl}/${itemUrl}?ws_key=${apiKey}`;
 
           const response = await fetch(fullUrl, {
@@ -138,8 +138,8 @@ export const fetchNestedUrls = async (obj, depth = 2, currentDepth = 0) => {
   return newObj;
 };
 
-export function useFetchAllResources(url, resourceType) {
-  const { loading, data, errors } = useFetchPrestashop(url);
+export function useFetchAllResources(url, resourceType, options = {}) {
+  const { loading, data, errors } = useFetchPrestashop(url, options);
   const [resourcesData, setResourcesData] = useState([]);
   const [loadingResources, setLoadingResources] = useState(false);
 
@@ -158,12 +158,12 @@ export function useFetchAllResources(url, resourceType) {
         try {
           const promises = data[resourceKey][itemKey].map(async (item) => {
             const itemUrl = item["@_href"].replace(
-              "http://localhost/prestashop2/api/",
+              "http://localhost/prestashop/api/",
               "",
             );
 
-            const apiKey = "2LA1668U53GC9T35AIT5Y3P7E8CKG7LL";
-            const baseUrl = "http://localhost/prestashop2/api";
+            const apiKey = "Q3971RIRQJVRL981S2KCEGBBMWILW8H1";
+            const baseUrl = "http://localhost/prestashop/api";
             const fullUrl = `${baseUrl}/${itemUrl}?ws_key=${apiKey}`;
 
             const response = await fetch(fullUrl, {
@@ -200,8 +200,8 @@ export function useFetchAllResources(url, resourceType) {
   };
 }
 
-export function useFetchAllProduits(url) {
-  return useFetchAllResources(url, "product");
+export function useFetchAllProduits(url, options = {}) {
+  return useFetchAllResources(url, "product", options);
 }
 
 export function useFetchAllCarriers(url) {

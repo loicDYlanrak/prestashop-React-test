@@ -7,8 +7,8 @@ export function useSearchPrestashop() {
   const [error, setError] = useState(null);
   const [results, setResults] = useState(null);
 
-  const apiKey = "2LA1668U53GC9T35AIT5Y3P7E8CKG7LL";
-  const baseUrl = "http://localhost/prestashop2/api";
+  const apiKey = "Q3971RIRQJVRL981S2KCEGBBMWILW8H1";
+  const baseUrl = "http://localhost/prestashop/api";
 
   /**
    * Recherche une entité par un attribut spécifique

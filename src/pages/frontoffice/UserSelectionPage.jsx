@@ -19,7 +19,7 @@ export default function UserSelectionPage() {
     setLoading(true);
     try {
       const response = await fetchPrestashop("customers");
-      console.log("customers: ", response);
+      // console.log("customers: ", response);
       
       if (response.success && response.data?.customers?.customer) {
         const customersList = response.data.customers.customer;
@@ -28,11 +28,15 @@ export default function UserSelectionPage() {
           customersList.map(async (customerRef) => {
             const customerId = customerRef["@_id"];
             const customerDetails = await fetchPrestashop(`customers/${customerId}`);
-            console.log(`customer ${customerId}: `, customerDetails);
-            
+            // console.log(`customer ${customerId}: `, customerDetails);
+            const addresses = await fetchPrestashop(`addresses`,{urlRest: `filter[id_customer]=${customerId}`});
+            // console.log(`addresses for customer ${customerId}: `, addresses);
+            const addressId = addresses.data?.addresses?.address?.[0]?.["@_id"] || addresses.data?.addresses?.address?.["@_id"] || null;
+            // console.log(`addressId for customer ${customerId}: `, addressId);
             if (customerDetails.success && customerDetails.data?.customer) {
               const cust = customerDetails.data.customer;
               return {
+                addressId: addressId,
                 id: parseInt(cust.id?.["#cdata"] || customerId),
                 firstname: cust.firstname?.["#cdata"] || "",
                 lastname: cust.lastname?.["#cdata"] || "",

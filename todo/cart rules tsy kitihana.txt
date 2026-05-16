@@ -130,17 +130,19 @@ si connecter:
 validation commande: 
     avec uniquement le choix “paiement à la livraison
     pas de frais de livraison
-
 état de “mes commandes”
 
-cote backoffice les trucs a faire 
 
+cote backoffice les trucs a faire 
 verification import:
     Nom de colonne non conforme
     format de date différente de DD/MM/YYYY
     montant positif
 
 dashboard 
+ajouter 
+rajouter une page qui permet d’ajouter en stock les produits
+    si produit a des declinaison on modifie le stock de ces declinaison
 
 deux input type date 
 Par jour
@@ -151,7 +153,3 @@ Par jour
     dernier status de chaque commande 
 tableau sur l’évolution du stock journalier d’un produit
     un produit a eu ce stock ce jour 
-
-ajouter 
-rajouter une page qui permet d’ajouter en stock les produits
-    si produit a des declinaison on modifie le stock de ces declinaison

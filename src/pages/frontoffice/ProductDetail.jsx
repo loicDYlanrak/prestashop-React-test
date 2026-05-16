@@ -23,9 +23,11 @@ export default function ProductDetail() {
   const [selectedCombination, setSelectedCombination] = useState(null);
   const [combinationStock, setCombinationStock] = useState(0);
   const { addToCart } = useCart();
+  const [specificPrices, setSpecificPrices] = useState([]);
 
   useEffect(() => {
     const findProduct = async () => {
+      await fetchSpecificPrices();
       if (!allProducts || allProducts.length === 0) return;
 
       const foundProduct = allProducts.find(
@@ -87,35 +89,47 @@ export default function ProductDetail() {
         }),
       );
 
-      // 2. Construire les combinaisons avec leurs infos de base
-      const combinationsWithDetails = combinationArray.map((combo) => {
-        const comboDetail = combinationsDetails.find(
-          (detail) =>
-            detail.combination.id?.["#cdata"] === combo.id?.["#cdata"],
-        );
+      // 2. Récupérer les option values pour chaque combinaison (plusieurs attributs possibles)
+      const allCombinationsWithOptionValues = await Promise.all(
+        combinationsDetails.map(async (comboDetail) => {
+          const productOptionValues =
+            comboDetail?.combination?.associations?.product_option_values
+              ?.product_option_value;
 
-        const optionValueId =
-          comboDetail?.combination?.associations?.product_option_values
-            ?.product_option_value?.id?.["#cdata"];
-        const price = parseFloat(
-          comboDetail?.combination?.price?.["#cdata"] || 0,
-        );
+          let optionValueIds = [];
+          if (productOptionValues) {
+            if (Array.isArray(productOptionValues)) {
+              optionValueIds = productOptionValues
+                .map((value) => value?.id?.["#cdata"])
+                .filter(Boolean);
+            } else {
+              optionValueIds = [productOptionValues?.id?.["#cdata"]].filter(
+                Boolean,
+              );
+            }
+          }
 
-        return {
-          id: combo.id?.["#cdata"],
-          id_product: comboDetail?.combination?.id_product?.["#cdata"],
-          price: price,
-          optionValueId: optionValueId,
-        };
-      });
+          return {
+            combinationId: comboDetail.combination.id?.["#cdata"],
+            optionValueIds: optionValueIds,
+            price: parseFloat(comboDetail?.combination?.price?.["#cdata"] || 0),
+            reference: comboDetail?.combination?.reference?.["#cdata"] || "",
+            ean13: comboDetail?.combination?.ean13?.["#cdata"] || "",
+            defaultOn: comboDetail?.combination?.default_on?.["#cdata"] === "1",
+            imageId: comboDetail?.combination?.id_image?.["#cdata"],
+          };
+        }),
+      );
 
-      // 3. Récupérer les option values
-      const optionValueIds = combinationsWithDetails
-        .map((combo) => combo.optionValueId)
-        .filter(Boolean);
+      // 3. Récupérer tous les IDs d'option values uniques
+      const allOptionValueIds = allCombinationsWithOptionValues.flatMap(
+        (combo) => combo.optionValueIds || [],
+      );
+      const uniqueOptionValueIds = [...new Set(allOptionValueIds)];
 
+      // 4. Récupérer les détails de tous les option values
       const optionValuesDetails = await Promise.all(
-        optionValueIds.map(async (id) => {
+        uniqueOptionValueIds.map(async (id) => {
           const optionValueResponse = await fetchPrestashop(
             `product_option_values/${id}`,
           );
@@ -123,17 +137,15 @@ export default function ProductDetail() {
         }),
       );
 
-      // 4. Construire les option values avec leurs groupes
-      const optionsProductValues = optionValuesDetails.map((optionValue) => {
-        return {
-          id: optionValue.product_option_value.id?.["#cdata"],
-          name: optionValue.product_option_value.name?.language?.["#cdata"],
-          groupId:
-            optionValue.product_option_value.id_attribute_group?.["#cdata"],
-        };
-      });
+      // 5. Construire les option values avec leurs infos
+      const optionsProductValues = optionValuesDetails.map((optionValue) => ({
+        id: optionValue.product_option_value.id?.["#cdata"],
+        name: optionValue.product_option_value.name?.language?.["#cdata"],
+        groupId:
+          optionValue.product_option_value.id_attribute_group?.["#cdata"],
+      }));
 
-      // 5. Récupérer les noms des groupes d'options
+      // 6. Récupérer les noms des groupes d'options
       const groupIds = [
         ...new Set(
           optionsProductValues.map((opt) => opt.groupId).filter(Boolean),
@@ -149,15 +161,12 @@ export default function ProductDetail() {
         }),
       );
 
-      const optionsDetails = optionsProductsDetails.map((product) => {
-        const option = product.product_option;
-        return {
-          id: option.id?.["#cdata"],
-          name: option.name?.language?.["#cdata"],
-        };
-      });
+      const optionsDetails = optionsProductsDetails.map((product) => ({
+        id: product.product_option.id?.["#cdata"],
+        name: product.product_option.name?.language?.["#cdata"],
+      }));
 
-      // 6. Associer les noms de groupes aux option values
+      // 7. Associer les noms de groupes
       const optionsWithValues = optionsProductValues.map((optionValue) => {
         const optionDetail = optionsDetails.find(
           (option) => option.id === optionValue.groupId,
@@ -168,7 +177,7 @@ export default function ProductDetail() {
         };
       });
 
-      // 7. Récupérer les stocks
+      // 8. Récupérer les stocks
       const stocksData =
         productData.associations?.stock_availables?.stock_available;
       const stockArray = stocksData
@@ -196,7 +205,6 @@ export default function ProductDetail() {
         }),
       );
 
-      // Mettre à jour les quantités avec les détails
       stocks = stocks.map((stock) => {
         const stockDetail = stocksDetails.find(
           (detail) => detail?.stock_available?.id?.["#cdata"] === stock.id,
@@ -210,56 +218,44 @@ export default function ProductDetail() {
         };
       });
 
-      // 8. Associer les stocks aux combinaisons
-      const stocksCombinations = combinationsWithDetails.map((combo) => {
-        const stock = stocks.find((s) => s.attributeId === combo.id);
-        return {
-          ...combo,
-          quantity: stock ? stock.quantity : 0,
-        };
-      });
+      // 9. Construire les combinaisons finales avec TOUS les attributs
+      const finalCombinations = allCombinationsWithOptionValues.map((combo) => {
+        const stock = stocks.find((s) => s.attributeId === combo.combinationId);
 
-      // 9. Ajouter les noms d'options et de groupes aux combinaisons finales
-      const finalCombinations = stocksCombinations.map((combo) => {
-        const optionValue = optionsWithValues.find(
-          (opt) => opt.id === combo.optionValueId,
-        );
+        // Récupérer TOUS les option values pour cette combinaison
+        const optionValues = combo.optionValueIds.map((optionValueId) => {
+          const optionValue = optionsWithValues.find(
+            (opt) => opt.id === optionValueId,
+          );
+          return {
+            id: optionValue?.id,
+            name: optionValue?.name || "",
+            groupName: optionValue?.groupName || "",
+            groupId: optionValue?.groupId,
+          };
+        });
 
-        // Récupérer l'image de la combinaison si disponible
-        const comboDetail = combinationsDetails.find(
-          (detail) => detail.combination.id?.["#cdata"] === combo.id,
-        );
-        const imageId = comboDetail?.combination?.id_image?.["#cdata"];
         let combinationImageUrl = null;
-        if (imageId && imageId !== "0") {
-          combinationImageUrl = `http://localhost/prestashop2/api/images/products/${id}/${imageId}?ws_key=2LA1668U53GC9T35AIT5Y3P7E8CKG7LL`;
+        if (combo.imageId && combo.imageId !== "0") {
+          combinationImageUrl = `http://localhost/prestashop/api/images/products/${id}/${combo.imageId}?ws_key=Q3971RIRQJVRL981S2KCEGBBMWILW8H1`;
         }
 
-        const reference = comboDetail?.combination?.reference?.["#cdata"] || "";
-        const ean13 = comboDetail?.combination?.ean13?.["#cdata"] || "";
-        const defaultOn =
-          comboDetail?.combination?.default_on?.["#cdata"] === "1";
-
         return {
-          id: parseInt(combo.id),
-          reference: reference,
-          ean13: ean13,
-          quantity: combo.quantity,
+          id: parseInt(combo.combinationId),
+          reference: combo.reference,
+          ean13: combo.ean13,
+          quantity: stock ? stock.quantity : 0,
           price: combo.price,
-          optionValues: [
-            {
-              id: optionValue?.id,
-              name: optionValue?.name || "",
-              groupName: optionValue?.groupName || "",
-              groupId: optionValue?.groupId,
-            },
-          ],
+          optionValues: optionValues,
           imageUrl: combinationImageUrl,
-          defaultOn: defaultOn,
+          defaultOn: combo.defaultOn,
         };
       });
 
-      console.log("Final combinations:", finalCombinations);
+      // console.log(
+      //   "Final combinations with multiple attributes:",
+      //   finalCombinations,
+      // );
       setCombinations(finalCombinations);
 
       if (finalCombinations.length > 0) {
@@ -274,6 +270,42 @@ export default function ProductDetail() {
       }
     } catch (error) {
       console.error("Error fetching combinations:", error);
+    }
+  };
+
+  // Ajouter cette fonction dans le composant
+  const fetchSpecificPrices = async () => {
+    try {
+      const response = await fetchPrestashop("specific_prices");
+      if (response.success && response.data?.specific_prices?.specific_price) {
+        const specificPricesData = response.data.specific_prices.specific_price;
+        const pricesArray = Array.isArray(specificPricesData)
+          ? specificPricesData
+          : [specificPricesData];
+
+        // Récupérer les détails complets de chaque prix spécifique
+        const pricesWithDetails = await Promise.all(
+          pricesArray.map(async (price) => {
+            const priceId = price["@_id"];
+            const detailResponse = await fetchPrestashop(
+              `specific_prices/${priceId}`,
+            );
+            return detailResponse.data;
+          }),
+        );
+
+        const formattedPrices = pricesWithDetails.map((detail) => ({
+          id_product: detail.specific_price?.id_product?.["#cdata"],
+          price: detail.specific_price?.price?.["#cdata"],
+          reduction: detail.specific_price?.reduction?.["#cdata"],
+          reduction_type: detail.specific_price?.reduction_type?.["#cdata"],
+        }));
+
+        setSpecificPrices(formattedPrices);
+        console.log("Specific prices loaded:", formattedPrices);
+      }
+    } catch (error) {
+      console.error("Error fetching specific prices:", error);
     }
   };
 
@@ -294,7 +326,6 @@ export default function ProductDetail() {
     }
   };
 
-  // Grouper les options par groupe pour l'affichage
   const getGroupedOptions = () => {
     const groups = {};
 
@@ -303,6 +334,7 @@ export default function ProductDetail() {
         if (!groups[option.groupName]) {
           groups[option.groupName] = [];
         }
+        // Éviter les doublons
         if (!groups[option.groupName].find((o) => o.id === option.id)) {
           groups[option.groupName].push({
             id: option.id,
@@ -327,7 +359,7 @@ export default function ProductDetail() {
   };
   const transformSingleProduct = async (item) => {
     const productData = item.product;
-    console.log("Transforming product:", productData);
+    // console.log("Transforming product:", productData);
     const name = productData.name?.language?.["#cdata"] || "";
 
     let description = "";
@@ -372,9 +404,34 @@ export default function ProductDetail() {
 
     const price = parseFloat(productData.price?.["#cdata"] || 0);
     const priceTTC = price * (1 + taxRate / 100);
-    const specificPrice = parseFloat(
-      productData.specific_price?.["#cdata"] || 0,
+
+    // Calculer la remise spécifique
+    let specificPriceValue = 0;
+    let finalPrice = priceTTC;
+    let discountPercent = 0;
+
+    const productId = productData.id?.["#cdata"];
+    // console.log("Calculating specific price for product ID:", productId);
+    // console.log("Available specific prices:", specificPrices);
+    const productSpecificPrice = specificPrices.find(
+      (sp) => sp.id_product == productId,
     );
+    
+    // console.log("Product specific price found:", productSpecificPrice);
+    if (productSpecificPrice && productSpecificPrice.reduction) {
+      
+      const reduction = parseFloat(productSpecificPrice.reduction);
+      if (productSpecificPrice.reduction_type === "percentage") {
+        // console.log("Applying percentage reduction:", reduction);
+        specificPriceValue = priceTTC * (1 - reduction);
+        discountPercent = reduction * 100;
+      } else if (productSpecificPrice.reduction_type === "amount") {
+        // console.log("Applying amount reduction:", reduction);
+        specificPriceValue = priceTTC - reduction;
+        discountPercent = (reduction / priceTTC) * 100;
+      }
+      finalPrice = specificPriceValue;
+    }
 
     let categoryIds = [];
     const categoriesData = productData.associations?.categories?.category;
@@ -397,7 +454,7 @@ export default function ProductDetail() {
         if (imageId && productData.id?.["#cdata"]) {
           images.push({
             id: imageId,
-            url: `http://localhost/prestashop2/api/images/products/${productData.id["#cdata"]}/${imageId}?ws_key=2LA1668U53GC9T35AIT5Y3P7E8CKG7LL`,
+            url: `http://localhost/prestashop/api/images/products/${productData.id["#cdata"]}/${imageId}?ws_key=Q3971RIRQJVRL981S2KCEGBBMWILW8H1`,
           });
         }
       }
@@ -408,14 +465,15 @@ export default function ProductDetail() {
       (Array.isArray(productData.associations.combinations.combination)
         ? productData.associations.combinations.combination.length > 0
         : true);
-    console.log("Product has combinations:", hasCombinations);
+    // console.log("Product has combinations:", hasCombinations);
     return {
       id: parseInt(productData.id?.["#cdata"]),
       name: name,
       description: description,
       descriptionLong: descriptionLong,
-      price: priceTTC,
-      specificPrice: specificPrice,
+      price: finalPrice,
+      specificPrice: finalPrice !== priceTTC ? finalPrice : 0,
+      discountPercent: discountPercent,
       categoryId: categoryIds || [],
       imageUrl:
         images.length > 0
@@ -512,29 +570,31 @@ export default function ProductDetail() {
       selectedCombinationId: selectedCombination?.id,
     };
 
-    console.log("Ajout au panier:", {
-      product: productToAdd,
-      quantity: quantity,
-      combination: selectedCombination,
-      totalPrice: getCurrentPrice() * quantity,
-    });
+    // console.log("Ajout au panier:", {
+    //   product: productToAdd,
+    //   quantity: quantity,
+    //   combination: selectedCombination,
+    //   totalPrice: getCurrentPrice() * quantity,
+    // });
     addToCart(productToAdd, quantity, selectedCombination);
   };
 
   const getCurrentPrice = () => {
-    const basePrice = product?.specificPrice || product?.price || 0;
-
     if (selectedCombination && selectedCombination.price > 0) {
       const totalHT =
         product?.price / (1 + (product?.taxRate || 20) / 100) +
         selectedCombination.price;
-      const priceTTC = totalHT * (1 + (product?.taxRate || 20) / 100);
-      return priceTTC;
+      return totalHT * (1 + (product?.taxRate || 20) / 100);
+    }
+    // console.log("product.specificPrice:", product.specificPrice);
+    
+    if (product?.specificPrice > 0 && product?.specificPrice < product?.price) {
+      return product.specificPrice;
     }
 
-    return basePrice;
+    return product?.price || 0;
   };
-  // Récupérer le stock total du produit (combinaisons + produit simple)
+
   const getTotalStock = () => {
     if (combinations.length > 0) {
       // Si des combinaisons existent, faire la somme de toutes
@@ -545,10 +605,10 @@ export default function ProductDetail() {
   };
   const getCurrentStock = () => {
     if (selectedCombination) {
-      console.log(
-        "Stock de la combinaison sélectionnée:",
-        selectedCombination.quantity,
-      );
+      // console.log(
+      //   "Stock de la combinaison sélectionnée:",
+      //   selectedCombination.quantity,
+      // );
       return selectedCombination.quantity;
     }
     return product?.quantity || 0;

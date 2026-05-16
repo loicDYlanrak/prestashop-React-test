@@ -2,6 +2,7 @@
 import { useCart } from "../../context/CartContext";
 import { Link, useNavigate } from "react-router-dom";
 import "./CartPage.css";
+import { addResource } from "../../hooks/useMutationPrestashop";
 
 export default function CartPage() {
   const { cart, cartTotal, removeFromCart, updateQuantity, clearCart } =
@@ -26,6 +27,158 @@ export default function CartPage() {
 
   const handleCheckout = () => {
     navigate("/checkout");
+  };
+
+  const handleValidateCart = async () => {
+    const cartRows = [];
+    const addressId = JSON.parse(localStorage.getItem("addressId")); 
+
+    for (const item of cart.panier) {
+      const productInfo = cart.products.find(
+        (product) => product.reference === item.product_reference
+      ); 
+
+      if (!productInfo) continue;
+
+      let attributeId = "0";
+      if (item.attribute_name) {
+        const targetValue = item.attribute_name.toLowerCase();
+        const productRef = item.product_reference;
+
+        for (let [key, value] of Object.entries(productInfo.combinations)) {
+          const keyParts = key.split("|");
+          const keyRef = keyParts[0];
+          const keyValue = keyParts[keyParts.length - 1];
+
+          if (keyRef === productRef && keyValue.toLowerCase() === targetValue) {
+            attributeId = value;
+            break;
+          }
+        }
+      }
+
+      cartRows.push({
+        id_product: productInfo.id.toString(),
+        id_product_attribute: attributeId,
+        id_address_delivery: addressId,
+        id_customization: "0",
+        quantity: item.quantity.toString(),
+      });
+    }
+
+    if (cartRows.length === 0) {
+      console.error("Aucun produit valide dans le panier");
+      return;
+    }
+
+    const cartData = {
+      id_address_delivery: addressId,
+      id_address_invoice: addressId,
+      id_currency: "1",
+      id_customer: JSON.parse(localStorage.getItem("customerId")), // Retrieve customerId from localStorage
+      id_guest: 0,
+      id_lang: "1",
+      id_shop_group: "1",
+      id_shop: "1",
+      id_carrier: "1",
+      recyclable: "0",
+      gift: "0",
+      gift_message: "",
+      mobile_theme: "0",
+      delivery_option: '{"8":"1,"}',
+      allow_seperated_package: "0",
+      associations: {
+        cart_rows: { cart_row: cartRows },
+      },
+    };
+
+
+    const response = await addResource("cart", cartData, {});
+    console.log("Cart Save Response:", response);
+  };
+
+  const handleValidateOrder = async () => {
+    const orderRows = [];
+    let totalProducts = 0;
+    let totalPaidTTC = 0;
+    const addressId = JSON.parse(localStorage.getItem("addressId")); // Retrieve addressId from localStorage
+    const customerId = JSON.parse(localStorage.getItem("customerId")); // Retrieve customerId from localStorage
+
+    for (const item of cart.panier) {
+      const productInfo = cart.products.find(
+        (product) => product.reference === item.product_reference
+      ); // Replace entityCache with cart.products
+
+      if (!productInfo) continue;
+
+      let attributeId = "0";
+      if (item.attribute_name) {
+        const targetValue = item.attribute_name.toLowerCase();
+        const productRef = item.product_reference;
+
+        for (let [key, value] of Object.entries(productInfo.combinations)) {
+          const keyParts = key.split("|");
+          const keyRef = keyParts[0];
+          const keyValue = keyParts[keyParts.length - 1];
+
+          if (keyRef === productRef && keyValue.toLowerCase() === targetValue) {
+            attributeId = value;
+            break;
+          }
+        }
+      }
+
+      const itemPrice = productInfo.price;
+      const taxRate = productInfo.taxRate || 20; // Default tax rate is 20%
+      const itemPriceTTC = itemPrice * (1 + taxRate / 100) * item.quantity; // Calculate price with tax
+      totalPaidTTC += itemPriceTTC;
+
+      orderRows.push({
+        product_id: productInfo.id.toString(),
+        product_attribute_id: attributeId,
+        product_quantity: item.quantity.toString(),
+      });
+
+      totalProducts += item.quantity;
+    }
+
+    if (orderRows.length === 0) {
+      console.error("Aucun produit valide dans la commande");
+      return;
+    }
+
+    const orderData = {
+      id_address_delivery: addressId,
+      id_address_invoice: addressId,
+      id_cart: JSON.parse(localStorage.getItem("cartId")), 
+      id_currency: "1",
+      id_lang: "1",
+      id_customer: customerId,
+      id_carrier: "1",
+      module: "ps_cashondelivery",
+      valid: "1",
+      id_shop_group: "1",
+      id_shop: "1",
+      payment: "Paiement comptant à la livraison (Cash on delivery)",
+      recyclable: "0",
+      gift: "0",
+      gift_message: "",
+      mobile_theme: "0",
+      total_paid: totalPaidTTC.toFixed(8),
+      total_paid_real: "0",
+      total_products: totalProducts.toFixed(8),
+      total_products_wt: "0",
+      round_mode: "2",
+      round_type: "2",
+      conversion_rate: "1",
+      associations: {
+        order_rows: { order_row: orderRows },
+      },
+    };
+
+
+    const response = await addResource("order", orderData, {});
+    console.log("Order Save Response:", response);
   };
 
   if (cart.length === 0) {
@@ -202,6 +355,8 @@ export default function CartPage() {
             <button onClick={handleCheckout} className="btn-checkout">
               Valider la commande →
             </button>
+            <button onClick={handleValidateCart}>Valider Panier</button>
+            <button onClick={handleValidateOrder}>Valider Commande</button>
           </div>
 
           <Link to="/products" className="btn-continue">

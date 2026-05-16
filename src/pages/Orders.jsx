@@ -106,11 +106,11 @@ export default function Orders() {
         current_state: { '#cdata': newStatusId }
       }
       
-      const response = await fetch(`http://localhost/prestashop2/api/orders/${orderId}`, {
+      const response = await fetch(`http://localhost/prestashop/api/orders/${orderId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/xml',
-          'Authorization': 'Basic ' + btoa('2LA1668U53GC9T35AIT5Y3P7E8CKG7LL:') // Remplacez par votre clé API
+          'Authorization': 'Basic ' + btoa('Q3971RIRQJVRL981S2KCEGBBMWILW8H1:') // Remplacez par votre clé API
         },
         body: formatOrderToXML(updatedOrderData)
       })

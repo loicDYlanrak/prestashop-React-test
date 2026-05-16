@@ -8,7 +8,7 @@ import CategoryFilter from "../../components/frontoffice/CategoryFilter";
 import "./ProductsList.css";
 
 export default function ProductsList() {
-  const { loading, data, errors } = useFetchAllProduits("products");
+  const { loading, data, errors } = useFetchAllProduits("products", {restUrl: "limit=0,15"});
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -75,7 +75,7 @@ export default function ProductsList() {
 
     try {
       const relativeUrl = stockUrl.replace(
-        "http://localhost/prestashop2/api/",
+        "http://localhost/prestashop/api/",
         "",
       );
       const response = await fetchPrestashop(relativeUrl);
@@ -176,7 +176,7 @@ export default function ProductsList() {
           ? imagesData[0]?.id?.["#cdata"]
           : imagesData?.id?.["#cdata"];
         if (imageId && productData.id?.["#cdata"]) {
-          imageUrl = `http://localhost/prestashop2/api/images/products/${productData.id["#cdata"]}/${imageId}?ws_key=2LA1668U53GC9T35AIT5Y3P7E8CKG7LL`;
+          imageUrl = `http://localhost/prestashop/api/images/products/${productData.id["#cdata"]}/${imageId}?ws_key=Q3971RIRQJVRL981S2KCEGBBMWILW8H1`;
         }
       }
 
