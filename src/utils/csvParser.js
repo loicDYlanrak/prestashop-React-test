@@ -1,6 +1,6 @@
 const parseCSVGeneric = (csvText) => {
   const lines = csvText.split(/\r?\n/);
-  if (lines.length === 0) return [];
+  if (lines.length === 0) return { headers: [], data: [], lines: [] };
   
   const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
   
@@ -28,7 +28,7 @@ const parseCSVGeneric = (csvText) => {
     row.push(currentValue.trim());
 
     if (row.length !== headers.length && row.length > 0) {
-      continue; // Ignorer les lignes mal formées
+      continue;
     }
 
     const rowData = {};
@@ -37,10 +37,10 @@ const parseCSVGeneric = (csvText) => {
       rowData[header] = value;
     });
 
-    data.push(rowData);
+    data.push({ rowData, lineNumber: i + 1 });
   }
 
-  return { headers, data };
+  return { headers, data: data.map(item => item.rowData), lines, rawData: data };
 };
 
 const parseFrenchNumber = (value) => {
@@ -56,40 +56,61 @@ const formatPrice = (value) => {
 
 // ==================== FICHIER 1 : PRODUITS ====================
 export const parseFile1Products = (csvText) => {
-  const { headers, data } = parseCSVGeneric(csvText);
+  const { headers, data, rawData } = parseCSVGeneric(csvText);
   
-  const requiredColumns = ["date_availability_produit", "nom", "reference", "prix_ttc", "Taxe", "categorie", "prix_achat"];
-  const missingColumns = requiredColumns.filter(col => !headers.includes(col));
+  const expectedColumns = ["date_availability_produit", "nom", "reference", "prix_ttc", "Taxe", "categorie", "prix_achat"];
+  const unexpectedColumns = headers.filter(col => !expectedColumns.includes(col));
+  if (unexpectedColumns.length > 0) {
+    throw new Error(`Ligne 1 - Colonnes non conformes: ${unexpectedColumns.join(", ")}. Colonnes attendues: ${expectedColumns.join(", ")}`);
+  }
   
+  const missingColumns = expectedColumns.filter(col => !headers.includes(col));
   if (missingColumns.length > 0) {
-    throw new Error(`Fichier 1 - Colonnes manquantes: ${missingColumns.join(", ")}`);
+    throw new Error(`Ligne 1 - Colonnes manquantes: ${missingColumns.join(", ")}`);
   }
   
   const categories = new Set();
   const taxes = new Set();
   const products = [];
+  const dateRegex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/([0-9]{4})$/;
   
-  for (const row of data) {
+  for (let idx = 0; idx < data.length; idx++) {
+    const row = data[idx];
+    const lineNumber = rawData[idx]?.lineNumber || idx + 2;
     const categorie = row.categorie?.trim();
     const taxe = row.Taxe?.trim();
     
     if (categorie) categories.add(categorie);
     if (taxe) taxes.add(taxe);
     
-    // Calcul du prix HT à partir du prix TTC et de la taxe
+    const dateValue = row.date_availability_produit?.trim();
+    if (dateValue && !dateRegex.test(dateValue)) {
+      throw new Error(`Ligne ${lineNumber} (colonne "date_availability_produit") - Format de date invalide pour le produit "${row.reference}" : ${dateValue}. Le format attendu est DD/MM/YYYY`);
+    }
+    
     const prixTTC = formatPrice(row.prix_ttc);
+    const prixAchat = formatPrice(row.prix_achat);
+    
+    if (prixTTC < 0) {
+      throw new Error(`Ligne ${lineNumber} (colonne "prix_ttc") - Le prix TTC ne peut pas être négatif pour le produit "${row.reference}" : ${prixTTC}`);
+    }
+    
+    if (prixAchat < 0) {
+      throw new Error(`Ligne ${lineNumber} (colonne "prix_achat") - Le prix d'achat ne peut pas être négatif pour le produit "${row.reference}" : ${prixAchat}`);
+    }
+    
     const taxeValue = parseFrenchNumber(taxe);
     const prixHT = taxeValue > 0 ? prixTTC / (1 + taxeValue / 100) : prixTTC;
     
     products.push({
       reference: row.reference?.trim(),
       nom: row.nom?.trim(),
-      date_availability: row.date_availability_produit?.trim(),
+      date_availability: dateValue,
       prix_ttc: prixTTC,
       prix_ht: parseFloat(prixHT.toFixed(8)),
       taxe: taxeValue,
       categorie_name: categorie,
-      prix_achat: formatPrice(row.prix_achat)
+      prix_achat: prixAchat
     });
   }
   
@@ -104,33 +125,46 @@ export const parseFile1Products = (csvText) => {
 
 // ==================== FICHIER 2 : COMBINAISONS ====================
 export const parseFile2Combinations = (csvText) => {
-  const { headers, data } = parseCSVGeneric(csvText);
-  const requiredColumns = ["reference", "specificité", "karazany", "stock_initial", "prix_vente_ttc"];
-  const missingColumns = requiredColumns.filter(col => !headers.includes(col));
+  const { headers, data, rawData } = parseCSVGeneric(csvText);
   
+  const expectedColumns = ["reference", "specificité", "karazany", "stock_initial", "prix_vente_ttc"];
+  const unexpectedColumns = headers.filter(col => !expectedColumns.includes(col));
+  if (unexpectedColumns.length > 0) {
+    throw new Error(`Ligne 1 - Fichier 2 - Colonnes non conformes: ${unexpectedColumns.join(", ")}. Colonnes attendues: ${expectedColumns.join(", ")}`);
+  }
+  
+  const missingColumns = expectedColumns.filter(col => !headers.includes(col));
   if (missingColumns.length > 0) {
-    throw new Error(`Fichier 2 - Colonnes manquantes: ${missingColumns.join(", ")}`);
+    throw new Error(`Ligne 1 - Fichier 2 - Colonnes manquantes: ${missingColumns.join(", ")}`);
   }
   
   const productOptions = new Set();
-  const productOptionValues = new Map(); // { option: Set(values) }
-  const productCombinations = new Map(); // { reference: [{ attribute, value, price_ttc }] }
-  const productStocks = new Map(); // { reference: [{ attribute, value, stock }] }
+  const productOptionValues = new Map();
+  const productCombinations = new Map();
+  const productStocks = new Map();
   
-  for (const row of data) {
+  for (let idx = 0; idx < data.length; idx++) {
+    const row = data[idx];
+    const lineNumber = rawData[idx]?.lineNumber || idx + 2;
     const reference = row.reference?.trim();
     const specificite = row["specificité"]?.trim();
     const karazany = row.karazany?.trim();
     const stock = parseInt(row.stock_initial) || 0;
     const prixTTC = formatPrice(row.prix_vente_ttc);
     
+    if (prixTTC < 0) {
+      throw new Error(`Ligne ${lineNumber} (colonne "prix_vente_ttc") - Fichier 2 - Le prix de vente TTC ne peut pas être négatif pour la référence "${reference}"`);
+    }
+    
+    if (stock < 0) {
+      throw new Error(`Ligne ${lineNumber} (colonne "stock_initial") - Fichier 2 - Le stock initial ne peut pas être négatif pour la référence "${reference}"`);
+    }
+    
     if (!reference) continue;
     
-    // Ajouter l'option si elle existe
     if (specificite) {
       productOptions.add(specificite);
       
-      // Gérer les valeurs d'option
       if (!productOptionValues.has(specificite)) {
         productOptionValues.set(specificite, new Set());
       }
@@ -138,7 +172,6 @@ export const parseFile2Combinations = (csvText) => {
         productOptionValues.get(specificite).add(karazany);
       }
       
-      // Gérer les combinaisons par produit
       if (!productCombinations.has(reference)) {
         productCombinations.set(reference, []);
       }
@@ -151,7 +184,6 @@ export const parseFile2Combinations = (csvText) => {
       }
     }
     
-    // Gérer les stocks
     if (!productStocks.has(reference)) {
       productStocks.set(reference, []);
     }
@@ -163,7 +195,6 @@ export const parseFile2Combinations = (csvText) => {
         stock: stock
       });
     } else if (!specificite && !karazany) {
-      // Produit sans combinaison
       productStocks.get(reference).push({
         attribute: null,
         value: null,
@@ -172,7 +203,6 @@ export const parseFile2Combinations = (csvText) => {
     }
   }
   
-  // Convertir les Sets en Arrays
   const optionsValues = {};
   for (const [option, values] of productOptionValues) {
     optionsValues[option] = Array.from(values);
@@ -186,7 +216,6 @@ export const parseFile2Combinations = (csvText) => {
     product_stocks: Object.fromEntries(productStocks)
   };
 };
-
 // ==================== FICHIER 3 : CLIENTS ET COMMANDES ====================
 // Fonction pour parser le panier au format: [("T_01";3;"ngoza"), ("C_03";1;"")]
 const parseCartString = (cartStr) => {
@@ -234,22 +263,29 @@ const parseCartString = (cartStr) => {
 };
 
 export const parseFile3Customers = (csvText) => {
-  const { headers, data } = parseCSVGeneric(csvText);
+  const { headers, data, rawData } = parseCSVGeneric(csvText);
   
-  // Vérification des colonnes requises
-  const requiredColumns = ["date", "nom", "email", "pwd", "adresse", "achat", "etat"];
-  const missingColumns = requiredColumns.filter(col => !headers.includes(col));
-  
-  if (missingColumns.length > 0) {
-    throw new Error(`Fichier 3 - Colonnes manquantes: ${missingColumns.join(", ")}`);
+  const expectedColumns = ["date", "nom", "email", "pwd", "adresse", "achat", "etat"];
+  const unexpectedColumns = headers.filter(col => !expectedColumns.includes(col));
+  if (unexpectedColumns.length > 0) {
+    throw new Error(`Ligne 1 - Fichier 3 - Colonnes non conformes: ${unexpectedColumns.join(", ")}. Colonnes attendues: ${expectedColumns.join(", ")}`);
   }
   
-  const addresses = new Set();
-  const customers = new Map(); // Utiliser Map pour éviter les doublons par email
-  const carts = []; // Tous les paniers
-  const orders = []; // Commandes avec état
+  const missingColumns = expectedColumns.filter(col => !headers.includes(col));
+  if (missingColumns.length > 0) {
+    throw new Error(`Ligne 1 - Fichier 3 - Colonnes manquantes: ${missingColumns.join(", ")}`);
+  }
   
-  for (const row of data) {
+  const dateRegex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/([0-9]{4})$/;
+  
+  const addresses = new Set();
+  const customers = new Map();
+  const carts = [];
+  const orders = [];
+  
+  for (let idx = 0; idx < data.length; idx++) {
+    const row = data[idx];
+    const lineNumber = rawData[idx]?.lineNumber || idx + 2;
     const nom = row.nom?.trim();
     const email = row.email?.trim();
     const pwd = row.pwd?.trim();
@@ -258,9 +294,12 @@ export const parseFile3Customers = (csvText) => {
     const etat = row.etat?.trim();
     const date = row.date?.trim();
     
+    if (date && !dateRegex.test(date)) {
+      throw new Error(`Ligne ${lineNumber} (colonne "date") - Fichier 3 - Format de date invalide pour le client "${email}" : ${date}. Le format attendu est DD/MM/YYYY`);
+    }
+    
     if (adresse) addresses.add(adresse);
     
-    // Ajouter le client si nouveau
     if (email && !customers.has(email)) {
       customers.set(email, {
         nom: nom,
@@ -270,8 +309,13 @@ export const parseFile3Customers = (csvText) => {
       });
     }
     
-    // Parser le panier
     const cartItems = parseCartString(achat);
+    
+    for (const item of cartItems) {
+      if (item.quantity < 0) {
+        throw new Error(`Ligne ${lineNumber} (colonne "achat") - Fichier 3 - Quantité négative dans le panier du client "${email}" pour la référence "${item.reference}"`);
+      }
+    }
     
     const cartData = {
       client_nom: nom,
@@ -286,7 +330,6 @@ export const parseFile3Customers = (csvText) => {
     
     carts.push(cartData);
     
-    // Si état existe, c'est une commande
     if (etat && etat !== "") {
       orders.push({
         client_nom: nom,
