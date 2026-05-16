@@ -1,0 +1,857 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+// ProductDetail.jsx
+import { useCart } from "../../context/CartContext";
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import {
+  useFetchAllProduits,
+  fetchPrestashop,
+} from "../../hooks/useFetchPrestashop";
+import "./ProductDetail.css";
+
+export default function ProductDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { loading: productsLoading, data: allProducts } =
+    useFetchAllProduits("products");
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [quantity, setQuantity] = useState(1);
+  const [selectedImage, setSelectedImage] = useState("");
+  const [relatedProducts, setRelatedProducts] = useState([]);
+  const [combinations, setCombinations] = useState([]);
+  const [selectedCombination, setSelectedCombination] = useState(null);
+  const [combinationStock, setCombinationStock] = useState(0);
+  const { addToCart } = useCart();
+
+  useEffect(() => {
+    const findProduct = async () => {
+      if (!allProducts || allProducts.length === 0) return;
+
+      const foundProduct = allProducts.find(
+        (item) => parseInt(item.product.id?.["#cdata"]) === parseInt(id),
+      );
+
+      if (foundProduct) {
+        const transformedProduct = await transformSingleProduct(foundProduct);
+        setProduct(transformedProduct);
+        setSelectedImage(transformedProduct.imageUrl);
+
+        if (foundProduct.product.associations?.combinations?.combination) {
+          await fetchCombinations(foundProduct.product);
+        }
+
+        if (
+          transformedProduct.categoryId &&
+          transformedProduct.categoryId.length > 0
+        ) {
+          const sameCategoryProducts = await getRelatedProducts(
+            transformedProduct.categoryId[0],
+            transformedProduct.id,
+          );
+          setRelatedProducts(sameCategoryProducts);
+        }
+      } else {
+        await fetchSingleProduct();
+      }
+
+      setLoading(false);
+    };
+
+    findProduct();
+  }, [id, allProducts]);
+
+  const fetchCombinations = async (productData) => {
+    try {
+      const combinationsData =
+        productData.associations?.combinations?.combination;
+      if (!combinationsData) {
+        setCombinations([]);
+        return;
+      }
+
+      const combinationArray = Array.isArray(combinationsData)
+        ? combinationsData
+        : [combinationsData];
+
+      // Récupérer les IDs des combinaisons
+      const combinationsId = combinationArray.map(
+        (combo) => combo.id?.["#cdata"],
+      );
+
+      // 1. Récupérer les détails de chaque combinaison
+      const combinationsDetails = await Promise.all(
+        combinationsId.map(async (id) => {
+          const comboResponse = await fetchPrestashop(`combinations/${id}`);
+          return comboResponse.data;
+        }),
+      );
+
+      // 2. Construire les combinaisons avec leurs infos de base
+      const combinationsWithDetails = combinationArray.map((combo) => {
+        const comboDetail = combinationsDetails.find(
+          (detail) =>
+            detail.combination.id?.["#cdata"] === combo.id?.["#cdata"],
+        );
+
+        const optionValueId =
+          comboDetail?.combination?.associations?.product_option_values
+            ?.product_option_value?.id?.["#cdata"];
+        const price = parseFloat(
+          comboDetail?.combination?.price?.["#cdata"] || 0,
+        );
+
+        return {
+          id: combo.id?.["#cdata"],
+          id_product: comboDetail?.combination?.id_product?.["#cdata"],
+          price: price,
+          optionValueId: optionValueId,
+        };
+      });
+
+      // 3. Récupérer les option values
+      const optionValueIds = combinationsWithDetails
+        .map((combo) => combo.optionValueId)
+        .filter(Boolean);
+
+      const optionValuesDetails = await Promise.all(
+        optionValueIds.map(async (id) => {
+          const optionValueResponse = await fetchPrestashop(
+            `product_option_values/${id}`,
+          );
+          return optionValueResponse.data;
+        }),
+      );
+
+      // 4. Construire les option values avec leurs groupes
+      const optionsProductValues = optionValuesDetails.map((optionValue) => {
+        return {
+          id: optionValue.product_option_value.id?.["#cdata"],
+          name: optionValue.product_option_value.name?.language?.["#cdata"],
+          groupId:
+            optionValue.product_option_value.id_attribute_group?.["#cdata"],
+        };
+      });
+
+      // 5. Récupérer les noms des groupes d'options
+      const groupIds = [
+        ...new Set(
+          optionsProductValues.map((opt) => opt.groupId).filter(Boolean),
+        ),
+      ];
+
+      const optionsProductsDetails = await Promise.all(
+        groupIds.map(async (groupId) => {
+          const optionResponse = await fetchPrestashop(
+            `product_options/${groupId}`,
+          );
+          return optionResponse.data;
+        }),
+      );
+
+      const optionsDetails = optionsProductsDetails.map((product) => {
+        const option = product.product_option;
+        return {
+          id: option.id?.["#cdata"],
+          name: option.name?.language?.["#cdata"],
+        };
+      });
+
+      // 6. Associer les noms de groupes aux option values
+      const optionsWithValues = optionsProductValues.map((optionValue) => {
+        const optionDetail = optionsDetails.find(
+          (option) => option.id === optionValue.groupId,
+        );
+        return {
+          ...optionValue,
+          groupName: optionDetail ? optionDetail.name : "Unknown Group",
+        };
+      });
+
+      // 7. Récupérer les stocks
+      const stocksData =
+        productData.associations?.stock_availables?.stock_available;
+      const stockArray = stocksData
+        ? Array.isArray(stocksData)
+          ? stocksData
+          : [stocksData]
+        : [];
+
+      let stocks = stockArray.map((stock) => ({
+        id: stock.id?.["#cdata"],
+        attributeId: stock.id_product_attribute?.["#cdata"],
+        quantity: parseInt(stock.quantity?.["#cdata"] || 0),
+      }));
+
+      // Récupérer les détails complets des stocks
+      const stocksDetails = await Promise.all(
+        stocks.map(async (stock) => {
+          if (stock.id) {
+            const stockResponse = await fetchPrestashop(
+              `stock_availables/${stock.id}`,
+            );
+            return stockResponse.data;
+          }
+          return null;
+        }),
+      );
+
+      // Mettre à jour les quantités avec les détails
+      stocks = stocks.map((stock) => {
+        const stockDetail = stocksDetails.find(
+          (detail) => detail?.stock_available?.id?.["#cdata"] === stock.id,
+        );
+        return {
+          ...stock,
+          quantity: parseInt(
+            stockDetail?.stock_available?.quantity?.["#cdata"] ||
+              stock.quantity,
+          ),
+        };
+      });
+
+      // 8. Associer les stocks aux combinaisons
+      const stocksCombinations = combinationsWithDetails.map((combo) => {
+        const stock = stocks.find((s) => s.attributeId === combo.id);
+        return {
+          ...combo,
+          quantity: stock ? stock.quantity : 0,
+        };
+      });
+
+      // 9. Ajouter les noms d'options et de groupes aux combinaisons finales
+      const finalCombinations = stocksCombinations.map((combo) => {
+        const optionValue = optionsWithValues.find(
+          (opt) => opt.id === combo.optionValueId,
+        );
+
+        // Récupérer l'image de la combinaison si disponible
+        const comboDetail = combinationsDetails.find(
+          (detail) => detail.combination.id?.["#cdata"] === combo.id,
+        );
+        const imageId = comboDetail?.combination?.id_image?.["#cdata"];
+        let combinationImageUrl = null;
+        if (imageId && imageId !== "0") {
+          combinationImageUrl = `http://localhost/prestashop2/api/images/products/${id}/${imageId}?ws_key=2LA1668U53GC9T35AIT5Y3P7E8CKG7LL`;
+        }
+
+        const reference = comboDetail?.combination?.reference?.["#cdata"] || "";
+        const ean13 = comboDetail?.combination?.ean13?.["#cdata"] || "";
+        const defaultOn =
+          comboDetail?.combination?.default_on?.["#cdata"] === "1";
+
+        return {
+          id: parseInt(combo.id),
+          reference: reference,
+          ean13: ean13,
+          quantity: combo.quantity,
+          price: combo.price,
+          optionValues: [
+            {
+              id: optionValue?.id,
+              name: optionValue?.name || "",
+              groupName: optionValue?.groupName || "",
+              groupId: optionValue?.groupId,
+            },
+          ],
+          imageUrl: combinationImageUrl,
+          defaultOn: defaultOn,
+        };
+      });
+
+      console.log("Final combinations:", finalCombinations);
+      setCombinations(finalCombinations);
+
+      if (finalCombinations.length > 0) {
+        const defaultCombination =
+          finalCombinations.find((c) => c.defaultOn) || finalCombinations[0];
+        setSelectedCombination(defaultCombination);
+        setCombinationStock(defaultCombination.quantity);
+
+        if (defaultCombination.imageUrl) {
+          setSelectedImage(defaultCombination.imageUrl);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching combinations:", error);
+    }
+  };
+
+  // Gestion du changement de combinaison
+  const handleCombinationChange = (combinationId) => {
+    const combo = combinations.find((c) => c.id === parseInt(combinationId));
+    if (combo) {
+      setSelectedCombination(combo);
+      setCombinationStock(combo.quantity);
+      setQuantity(1); // Réinitialiser la quantité
+
+      // Changer l'image si la combinaison a une image spécifique
+      if (combo.imageUrl) {
+        setSelectedImage(combo.imageUrl);
+      } else if (product?.images?.[0]) {
+        setSelectedImage(product.images[0].url);
+      }
+    }
+  };
+
+  // Grouper les options par groupe pour l'affichage
+  const getGroupedOptions = () => {
+    const groups = {};
+
+    combinations.forEach((combo) => {
+      combo.optionValues.forEach((option) => {
+        if (!groups[option.groupName]) {
+          groups[option.groupName] = [];
+        }
+        if (!groups[option.groupName].find((o) => o.id === option.id)) {
+          groups[option.groupName].push({
+            id: option.id,
+            name: option.name,
+            groupId: option.groupId,
+            combinationId: combo.id,
+            quantity: combo.quantity,
+          });
+        }
+      });
+    });
+
+    return groups;
+  };
+
+  const getCombinationsForOption = (groupId, optionId) => {
+    return combinations.filter((combo) =>
+      combo.optionValues.some(
+        (opt) => opt.groupId === groupId && opt.id === optionId,
+      ),
+    );
+  };
+  const transformSingleProduct = async (item) => {
+    const productData = item.product;
+    console.log("Transforming product:", productData);
+    const name = productData.name?.language?.["#cdata"] || "";
+
+    let description = "";
+    let descriptionLong = "";
+
+    if (productData.description_short?.language) {
+      description = (
+        productData.description_short.language["#cdata"] || ""
+      ).replace(/<[^>]*>/g, "");
+    }
+
+    if (productData.description?.language) {
+      descriptionLong = (
+        productData.description.language["#cdata"] || ""
+      ).replace(/<[^>]*>/g, "");
+    }
+
+    const idTaxeRuleGroupe = productData?.id_tax_rules_group?.["#cdata"];
+    let taxRate = 20;
+    try {
+      const taxeRule = `&filter[id_tax_rules_group]=${idTaxeRuleGroupe}&filter[id_country]=8`;
+      const response = await fetchPrestashop("tax_rules", {
+        urlRest: taxeRule,
+      });
+
+      if (response?.data?.tax_rules?.tax_rule?.["@_id"]) {
+        const idTaxeRule = response.data.tax_rules.tax_rule["@_id"];
+        const response2 = await fetchPrestashop(`tax_rules/${idTaxeRule}`);
+
+        if (response2?.data?.tax_rule?.id_tax?.["#cdata"]) {
+          const idTaxe = response2.data.tax_rule.id_tax["#cdata"];
+          const response3 = await fetchPrestashop(`taxes/${idTaxe}`);
+
+          if (response3?.data?.tax?.rate?.["#cdata"]) {
+            taxRate = parseFloat(response3.data.tax.rate["#cdata"]);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching tax rate:", error);
+    }
+
+    const price = parseFloat(productData.price?.["#cdata"] || 0);
+    const priceTTC = price * (1 + taxRate / 100);
+    const specificPrice = parseFloat(
+      productData.specific_price?.["#cdata"] || 0,
+    );
+
+    let categoryIds = [];
+    const categoriesData = productData.associations?.categories?.category;
+    if (categoriesData) {
+      if (Array.isArray(categoriesData)) {
+        categoryIds = categoriesData
+          .map((cat) => parseInt(cat.id?.["#cdata"]))
+          .filter(Boolean);
+      } else if (categoriesData?.id) {
+        categoryIds = [parseInt(categoriesData.id["#cdata"])].filter(Boolean);
+      }
+    }
+
+    let images = [];
+    const imagesData = productData.associations?.images?.image;
+    if (imagesData) {
+      const imageArray = Array.isArray(imagesData) ? imagesData : [imagesData];
+      for (const img of imageArray) {
+        const imageId = img.id?.["#cdata"];
+        if (imageId && productData.id?.["#cdata"]) {
+          images.push({
+            id: imageId,
+            url: `http://localhost/prestashop2/api/images/products/${productData.id["#cdata"]}/${imageId}?ws_key=2LA1668U53GC9T35AIT5Y3P7E8CKG7LL`,
+          });
+        }
+      }
+    }
+
+    const hasCombinations =
+      productData.associations?.combinations?.combination &&
+      (Array.isArray(productData.associations.combinations.combination)
+        ? productData.associations.combinations.combination.length > 0
+        : true);
+    console.log("Product has combinations:", hasCombinations);
+    return {
+      id: parseInt(productData.id?.["#cdata"]),
+      name: name,
+      description: description,
+      descriptionLong: descriptionLong,
+      price: priceTTC,
+      specificPrice: specificPrice,
+      categoryId: categoryIds || [],
+      imageUrl:
+        images.length > 0
+          ? images[0].url
+          : "https://via.placeholder.com/600x600?text=No+Image",
+      images: images,
+      reference: productData.reference?.["#cdata"] || "",
+      quantity: 0,
+      active: productData.active?.["#cdata"] === "1",
+      taxRate: taxRate,
+      hasCombinations: hasCombinations,
+    };
+  };
+
+  const fetchSingleProduct = async () => {
+    try {
+      const response = await fetchPrestashop(`products/${id}`);
+      if (response.success && response.data?.product) {
+        const transformed = await transformSingleProduct({
+          product: response.data.product,
+        });
+        setProduct(transformed);
+        setSelectedImage(transformed.imageUrl);
+
+        if (response.data.product.associations?.combinations?.combination) {
+          await fetchCombinations(response.data.product);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching product:", error);
+    }
+  };
+
+  const getRelatedProducts = async (categoryId, currentProductId) => {
+    if (!allProducts) return [];
+
+    const related = [];
+    for (const item of allProducts) {
+      const productData = item.product;
+      const productId = parseInt(productData.id?.["#cdata"]);
+
+      if (productId === currentProductId) continue;
+
+      let cats = [];
+      const categoriesData = productData.associations?.categories?.category;
+      if (categoriesData) {
+        if (Array.isArray(categoriesData)) {
+          cats = categoriesData
+            .map((cat) => parseInt(cat.id?.["#cdata"]))
+            .filter(Boolean);
+        } else if (categoriesData?.id) {
+          cats = [parseInt(categoriesData.id["#cdata"])].filter(Boolean);
+        }
+      }
+
+      if (cats.includes(categoryId) && related.length < 4) {
+        const transformed = await transformSingleProduct(item);
+        related.push(transformed);
+      }
+    }
+
+    return related;
+  };
+
+  const handleQuantityChange = (e) => {
+    const value = parseInt(e.target.value);
+    const maxStock = selectedCombination
+      ? combinationStock
+      : product?.quantity || 0;
+    if (value >= 1 && value <= maxStock) {
+      setQuantity(value);
+    }
+  };
+
+  const incrementQuantity = () => {
+    const maxStock = selectedCombination
+      ? combinationStock
+      : product?.quantity || 0;
+    if (quantity < maxStock) {
+      setQuantity(quantity + 1);
+    }
+  };
+
+  const decrementQuantity = () => {
+    if (quantity > 1) {
+      setQuantity(quantity - 1);
+    }
+  };
+
+  const handleAddToCart = () => {
+    const productToAdd = {
+      ...product,
+      selectedCombination: selectedCombination,
+      selectedCombinationId: selectedCombination?.id,
+    };
+
+    console.log("Ajout au panier:", {
+      product: productToAdd,
+      quantity: quantity,
+      combination: selectedCombination,
+      totalPrice: getCurrentPrice() * quantity,
+    });
+    addToCart(productToAdd, quantity, selectedCombination);
+  };
+
+  const getCurrentPrice = () => {
+    const basePrice = product?.specificPrice || product?.price || 0;
+
+    if (selectedCombination && selectedCombination.price > 0) {
+      const totalHT =
+        product?.price / (1 + (product?.taxRate || 20) / 100) +
+        selectedCombination.price;
+      const priceTTC = totalHT * (1 + (product?.taxRate || 20) / 100);
+      return priceTTC;
+    }
+
+    return basePrice;
+  };
+  // Récupérer le stock total du produit (combinaisons + produit simple)
+  const getTotalStock = () => {
+    if (combinations.length > 0) {
+      // Si des combinaisons existent, faire la somme de toutes
+      return combinations.reduce((total, combo) => total + combo.quantity, 0);
+    }
+    // Sinon retourner le stock du produit simple
+    return product?.quantity || 0;
+  };
+  const getCurrentStock = () => {
+    if (selectedCombination) {
+      console.log(
+        "Stock de la combinaison sélectionnée:",
+        selectedCombination.quantity,
+      );
+      return selectedCombination.quantity;
+    }
+    return product?.quantity || 0;
+  };
+
+  const hasDiscount =
+    product?.specificPrice > 0 &&
+    product?.specificPrice < product?.price &&
+    !selectedCombination;
+  const discountPercent = hasDiscount
+    ? Math.round(
+        ((product.price - product.specificPrice) / product.price) * 100,
+      )
+    : 0;
+
+  if (loading || productsLoading) {
+    return (
+      <div className="product-detail-loading">
+        <div className="spinner"></div>
+        <p>Chargement du produit...</p>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="product-detail-error">
+        <h2>Produit non trouvé</h2>
+        <p>
+          Le produit que vous recherchez n&apos;existe pas ou a été supprimé.
+        </p>
+        <button onClick={() => navigate("/products")} className="btn-back">
+          Retour aux produits
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="product-detail-page">
+      <button onClick={() => navigate("/products")} className="btn-back">
+        ← Retour aux produits
+      </button>
+
+      <div className="product-detail-container">
+        {/* Galerie d'images */}
+        <div className="product-gallery">
+          <div className="main-image">
+            <img src={selectedImage} alt={product.name} />
+            {hasDiscount && (
+              <span className="discount-badge-large">-{discountPercent}%</span>
+            )}
+          </div>
+          {product.images && product.images.length > 1 && (
+            <div className="thumbnail-list">
+              {product.images.map((img, index) => (
+                <div
+                  key={img.id}
+                  className={`thumbnail ${selectedImage === img.url ? "active" : ""}`}
+                  onClick={() => setSelectedImage(img.url)}
+                >
+                  <img
+                    src={img.url}
+                    alt={`${product.name} - vue ${index + 1}`}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Informations produit */}
+        <div className="product-info-detail">
+          <h1 className="product-title">{product.name}</h1>
+
+          {product.reference && !selectedCombination && (
+            <div className="product-reference">Réf: {product.reference}</div>
+          )}
+
+          {selectedCombination && selectedCombination.reference && (
+            <div className="product-reference">
+              Réf: {selectedCombination.reference}
+            </div>
+          )}
+
+          <div className="product-pricing-detail">
+            {hasDiscount && !selectedCombination ? (
+              <div className="pricing-wrapper">
+                <span className="original-price-detail">
+                  {product.price.toFixed(2)} €
+                </span>
+                <span className="discount-price-detail">
+                  {product.specificPrice.toFixed(2)} €
+                </span>
+                <span className="discount-badge-text">
+                  Économisez{" "}
+                  {(product.price - product.specificPrice).toFixed(2)} €
+                </span>
+              </div>
+            ) : (
+              <span className="price-detail">
+                {getCurrentPrice().toFixed(2)} €
+              </span>
+            )}
+
+            {product.taxRate && (
+              <div className="tax-info">TTC · TVA {product.taxRate}%</div>
+            )}
+          </div>
+
+          {/* Sélecteur de combinaisons */}
+          {combinations.length > 0 && (
+            <div className="combinations-selector">
+              <h3>Options disponibles</h3>
+
+              {Object.entries(getGroupedOptions()).map(
+                ([groupName, options]) => (
+                  <div key={groupName} className="option-group">
+                    <label className="option-label">{groupName}</label>
+                    <div className="option-values">
+                      {options.map((option) => {
+                        const availableCombos = getCombinationsForOption(
+                          option.groupId,
+                          option.id,
+                        );
+                        const isAvailable = availableCombos.some(
+                          (combo) => combo.quantity > 0,
+                        );
+                        const selectedComboForOption =
+                          selectedCombination?.optionValues.find(
+                            (opt) =>
+                              opt.groupId === option.groupId &&
+                              opt.id === option.id,
+                          );
+                        const isSelected = selectedComboForOption !== undefined;
+
+                        return (
+                          <button
+                            key={option.id}
+                            className={`option-value-btn ${isSelected ? "selected" : ""} ${!isAvailable ? "disabled" : ""}`}
+                            onClick={() => {
+                              if (isAvailable) {
+                                // Trouver la combinaison qui a cette option sélectionnée
+                                const comboWithOption = combinations.find(
+                                  (combo) =>
+                                    combo.optionValues.some(
+                                      (opt) => opt.id === option.id,
+                                    ) && combo.quantity > 0,
+                                );
+                                if (comboWithOption) {
+                                  handleCombinationChange(comboWithOption.id);
+                                }
+                              }
+                            }}
+                            disabled={!isAvailable}
+                          >
+                            {option.name}
+                            {!isAvailable && (
+                              <span className="out-of-stock-option">
+                                (Rupture)
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ),
+              )}
+
+              {/* Affichage des informations de la combinaison sélectionnée */}
+              {selectedCombination && (
+                <div className="selected-combination-info">
+                  {selectedCombination.reference && (
+                    <p>
+                      <strong>Référence:</strong>{" "}
+                      {selectedCombination.reference}
+                    </p>
+                  )}
+                  {selectedCombination.ean13 && (
+                    <p>
+                      <strong>EAN13:</strong> {selectedCombination.ean13}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          <div className="stock-status">
+            {getCurrentStock() > 0 ? (
+              <div className="in-stock-detail">
+                <span className="stock-icon">✔</span>
+                {combinations.length > 0 ? (
+                  <>
+                    En stock {getCurrentStock()} disponible
+                    {getCurrentStock() > 1 ? "s" : ""}
+                    {getTotalStock() !== getCurrentStock() && (
+                      <span className="total-stock-info">
+                        {" "}
+                        : {getTotalStock()} au total
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    En stock ({getCurrentStock()} disponible
+                    {getCurrentStock() > 1 ? "s" : ""})
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="out-stock-detail">
+                <span className="stock-icon">✗</span>
+                Rupture de stock
+              </div>
+            )}
+          </div>
+          {product.description && (
+            <div className="product-description-short">
+              <h3>Description</h3>
+              <p>{product.description}</p>
+            </div>
+          )}
+
+          {product.descriptionLong && (
+            <div className="product-description-long">
+              <h3>Détails du produit</h3>
+              <p>{product.descriptionLong}</p>
+            </div>
+          )}
+
+          {getCurrentStock() > 0 && (
+            <div className="add-to-cart-section">
+              <div className="quantity-selector">
+                <button onClick={decrementQuantity} disabled={quantity <= 1}>
+                  -
+                </button>
+                <input
+                  type="number"
+                  value={quantity}
+                  onChange={handleQuantityChange}
+                  min="1"
+                  max={getCurrentStock()}
+                />
+                <button
+                  onClick={incrementQuantity}
+                  disabled={quantity >= getCurrentStock()}
+                >
+                  +
+                </button>
+              </div>
+
+              <button
+                className="btn-add-to-cart-detail"
+                onClick={handleAddToCart}
+              >
+                Ajouter au panier · {(getCurrentPrice() * quantity).toFixed(2)}{" "}
+                €
+              </button>
+            </div>
+          )}
+
+          {getCurrentStock() === 0 && (
+            <button className="btn-out-of-stock" disabled>
+              Rupture de stock
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Produits similaires */}
+      {relatedProducts.length > 0 && (
+        <div className="related-products">
+          <h2>Produits similaires</h2>
+          <div className="related-products-grid">
+            {relatedProducts.map((relatedProduct) => (
+              <div
+                key={relatedProduct.id}
+                className="related-product-card"
+                onClick={() => navigate(`/product/${relatedProduct.id}`)}
+              >
+                <img src={relatedProduct.imageUrl} alt={relatedProduct.name} />
+                <h4>{relatedProduct.name}</h4>
+                <p className="related-price">
+                  {relatedProduct.specificPrice &&
+                  relatedProduct.specificPrice < relatedProduct.price ? (
+                    <>
+                      <span className="related-old-price">
+                        {relatedProduct.price.toFixed(2)} €
+                      </span>
+                      <span className="related-new-price">
+                        {relatedProduct.specificPrice.toFixed(2)} €
+                      </span>
+                    </>
+                  ) : (
+                    <span>{relatedProduct.price.toFixed(2)} €</span>
+                  )}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

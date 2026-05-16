@@ -1,0 +1,60 @@
+.category-filter {
+  margin-bottom: 32px;
+}
+
+.filter-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.filter-chip {
+  background: white;
+  border: 2px solid #e0e0e0;
+  padding: 10px 20px;
+  border-radius: 30px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-chip:hover {
+  border-color: #667eea;
+  color: #667eea;
+  transform: translateY(-2px);
+}
+
+.filter-chip.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: transparent;
+  color: white;
+}
+
+.count {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.filter-chip.active .count {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 768px) {
+  .filter-container {
+    gap: 8px;
+  }
+  
+  .filter-chip {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+}

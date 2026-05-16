@@ -3,8 +3,8 @@ import { convertToPrestashopXML } from "../utils/BuilderXml";
 import { parsePrestashopXML } from "../utils/ParserXml";
 
 const DEFAULT_CONFIG = {
-  apiKey: "Q3971RIRQJVRL981S2KCEGBBMWILW8H1",
-  baseUrl: "http://localhost/prestashop/api"
+  apiKey: "2LA1668U53GC9T35AIT5Y3P7E8CKG7LL",
+  baseUrl: "http://localhost/prestashop2/api"
 };
 
 const RESOURCE_ENDPOINTS = {
@@ -117,4 +117,64 @@ export function useDeleteManufacturer() {
 export function useDeleteSupplier() {
   const { deleteResource, loading, error, data } = useDeleteResource('supplier');
   return { deleteSupplier: deleteResource, loading, error, data };
+}
+
+export async function deleteResource(resourceUrl, resourceId) {
+  try {
+    let resourceTypeSingular = resourceUrl.endsWith('ies') 
+      ? resourceUrl.slice(0, -3) + 'y'  
+      : resourceUrl.endsWith('s') 
+        ? resourceUrl.slice(0, -1)      
+        : resourceUrl;                   
+    
+    const url = `${DEFAULT_CONFIG.baseUrl}/${resourceUrl}/${resourceId}?ws_key=${DEFAULT_CONFIG.apiKey}`;
+    
+    const deleteData = {
+      prestashop: {
+        [resourceTypeSingular]: {
+          id: resourceId
+        }
+      }
+    };
+    
+    const xml = convertToPrestashopXML(deleteData, "prestashop", false);
+    
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/xml",
+        "Accept": "application/xml"
+      },
+      body: xml
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    }
+    
+    const responseText = await response.text();
+    let parsedResponse = null;
+    
+    if (responseText && responseText.trim()) {
+      try {
+        parsedResponse = await parsePrestashopXML(responseText);
+      } catch (parseError) {
+        console.warn("Réponse XML non valide:", parseError);
+      }
+    }
+    
+    return {
+      success: true,
+      data: parsedResponse || { success: true, id: resourceId, deleted: true },
+      status: response.status
+    };
+    
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      data: null
+    };
+  }
 }

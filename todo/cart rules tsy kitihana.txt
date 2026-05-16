@@ -1,0 +1,157 @@
+cart rules tsy kitihana
+
+effacer les donnes :
+order_details : 9 0
+order_cart_rules : 0
+order_histories : 8 0
+order_invoices: 1 0
+order_payments: 1 0
+order_slip: 0
+order_carriers: 6 0
+orders : 5 0
+carts : 7 5 
+combinations: 39 0
+specific_prices: 2
+stock_availables : 58 0
+images: 19 0
+products : 19 0
+product_feature_values :10 0
+product_features : 2 0
+product_option_values: 25 0
+product_options : 4 0
+categories : 9 -2  2 (Attention : ne pas supprimer la catégorie racine ID 1 et 2 en général)
+
+taxes :farany: 32
+tax_rule_groups: 5
+tax_rules : 145 
+
+object que je vais avoir besoin pour chaque fichier :
+
+fichier 1 :
+date_availability_produit,nom,reference,prix_ttc,Taxe,categorie,prix_achat
+01/12/2025,Tshirt,T_01,"12,5","11,65%",Akanjo,"8,5"
+02/05/2026,Pantalon,P_01,"18,99","11,65%",Akanjo,"14,33"
+08/05/2026,Casquette,C_03,5,"5,60%",Accessoire,2
+08/05/2026,Montre,M_02,56,"5,60%",Accessoire,40
+
+a partir obtenir 
+liste de categorie unique : par exemple Ankajo et Accessoire
+liste de taxe unique : 11,65 et 5,60
+liste de produit avec categorie_name: et prix ht et prx ttc reference , prix_achat
+
+fichier 2 :
+reference,specificité,karazany,stock_initial,prix_vente_ttc
+T_01,taille,ngoza,13,"12,5"
+T_01,taille,kely,10,15
+P_01,couleur,mainty,5,"23,49"
+P_01,couleur,fotsy,3,"18,99"
+C_03,,,10,
+M_02,,,11,
+
+a partir de fichier 2 obtenir : 
+liste de product option unique : taille , couleur 
+liste de product option value : taille : ngoza , kely ; couleur : mainty , fotsy
+liste de combination de produit : par exemple :
+    produit T_01 : taille:ngoza prix_ttc(12,5) , taille:kely prix_ttc(15),
+    produit P_01 : couleur: mainty prix_ttc(23,49), couleur : fotsy prix_ttc(18,99) 
+    ...
+
+liste de stock de produit: 
+    produit T_01 : taille:ngoza :13  , taille:kely : 10
+    produit C_03 : 10 
+    ...
+
+fichier 3 : 
+date,nom,email,pwd,adresse,achat,etat
+09/05/2026,Rakoto,rakoto@yopmail.com,XvzsX5O0!GBD0uXQ,Andoharanofotsy,"[(""T_01"";3;""ngoza"")]",
+16/04/2026,Rajao,rajao1970@yopmail.com,BAC?UoxjQIW;Na8ix,Analakely,"[(""T_01"";2;""kely""),(""C_03"";1;"""")]",paiement accepté
+07/05/2026,Rakoto,rakoto@yopmail.com,XvzsX5O0!GBD0uXQ,Andoharanofotsy,"[(""T_01"";1;""kely"")]",paiement accepté
+
+a partir de fichier 3 obtenir 
+liste d adresse unique : ex Andoharanofotsy , Analakely
+liste de client(customer) :
+    nom , email , mot de passe , adresse 
+liste de panier : ex : client_name: ,  array:product: attribute: name ,quantity
+
+liste de commande : si etat existe donc commande : 
+client_name array product  attribute name , quantity , etat
+
+zip : dezipper :dans le zip il y a des images comme ceci : 
+T_01.png , P_01.png , obtenir et mettre dans un object image_product
+
+
+maintenant il faut creer le fonction pour inserer les donnes dans labase : 
+
+apres une insertion toujours garder l object resultant
+traiter file1:
+    inserer les categorie, 
+    inserer les taxes, 
+    inserer les tax_rule_groups 
+    inserer les tax_rules
+    inserer les produits
+
+traiter file2:
+    inserer les product_options
+    inserer les product_option_values
+    inserer les product_combinations 
+    pacth product pour les produits avec combinations
+    fetch products pour recuperer les id stock_availables par produit par rapport au combination
+    pacth stock_availables des produits
+
+traiter zip:
+    inserer les images par rapport reference produits 
+
+traiter file3:
+    inserer les customers
+    inserer les addresses
+    inserer les carts
+    inserer les orders 
+
+cote front les truc a faire 
+
+ajouter une page pour 
+choisir avec quel utilisateur on veut se connecter
+    rajouter une option “utilisateur anonyme”
+
+gestion de panier
+
+mettre une marque sur les produits ( voir date_availability_produit)
+ HOT : pour les produits sorties 1j avant
+ NEW : pour les produits sorties 1 semaines avant
+
+implémenter une recherche multicritère par produit
+ nom
+ catégorie
+ intervalle de prix
+
+Afficher la quantité en stock disponible sur la fiche produit(par declinaison)
+
+si connecter:
+validation commande: 
+    avec uniquement le choix “paiement à la livraison
+    pas de frais de livraison
+
+état de “mes commandes”
+
+cote backoffice les trucs a faire 
+
+verification import:
+    Nom de colonne non conforme
+    format de date différente de DD/MM/YYYY
+    montant positif
+
+dashboard 
+
+deux input type date 
+Par jour
+    nb de commande
+    montant
+ Total général
+    afficher la liste des commande avec montant ht et ttc 
+    dernier status de chaque commande 
+tableau sur l’évolution du stock journalier d’un produit
+    un produit a eu ce stock ce jour 
+
+ajouter 
+rajouter une page qui permet d’ajouter en stock les produits
+    si produit a des declinaison on modifie le stock de ces declinaison

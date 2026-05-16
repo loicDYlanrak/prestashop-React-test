@@ -99,8 +99,19 @@ function cleanXmlTags(xml) {
     'new', 'id_default_combination', 'id_tax_rules_group', 'type',
     'reference', 'supplier_reference', 'ean13', 'state',
     'product_type', 'price', 'unit_price', 'id_default_group', 'id_lang',
-    'passwd', 'lastname', 'firstname', 'email', 'id_gender', 'active',
-    'id'
+    'passwd', 'lastname', 'firstname', 'email'  , 'id_gender', 'active',
+    'id', 'deleted','id_state', 'id_country', 'zipcode_from', 'zipcode_to',
+    'id_tax', 'behavior','wholesale_price', 'cache_default_attribute','available_for_order',
+    'show_price', 'available_date','is_color_group','group_type' ,'id_attribute_group',
+    'id_product','minimal_quantity', 'quantity','out_of_stock', 'id_shop',
+    'id_customer','id_warehouse', 'alias','company', 'vat_number','address1',
+    'address2','postcode', 'city', 'other','phone','phone_mobile','id_address_delivery',
+    'id_address_invoice', 'id_currency', 'id_guest', 'id_shop_group', 'id_carrier',
+    'recyclable', 'gift', 'gift_message', 'mobile_theme', 'delivery_option', 'allow_seperated_package',
+    'id_product_attribute', 'id_customization' ,'id_cart' ,'module' ,'valid',
+    'payment', 'total_paid', 'total_paid_real','total_products', 'total_products_wt',
+    'round_mode', 'round_type', 'conversion_rate', 'product_id', 'product_attribute_id',
+    'product_quantity'
   ];
 
   simpleTags.forEach(tag => {
