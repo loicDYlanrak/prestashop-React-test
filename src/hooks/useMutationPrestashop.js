@@ -3,8 +3,8 @@ import { convertToPrestashopXML } from "../utils/BuilderXml";
 import { parsePrestashopXML } from "../utils/ParserXml";
 
 const DEFAULT_CONFIG = {
-  apiKey: "Q3971RIRQJVRL981S2KCEGBBMWILW8H1",
-  baseUrl: "http://localhost/prestashop/api",
+  apiKey: "2LA1668U53GC9T35AIT5Y3P7E8CKG7LL",
+  baseUrl: "http://localhost/prestashop2/api",
 };
 
 const RESOURCE_ENDPOINTS = {
@@ -445,26 +445,26 @@ export async function addResource(resourceType, resourceData, options = {}) {
     languageId,
     multilangFields,
   );
-  console.log(xml);
+  // console.log(xml);
 
-  // const response = await fetch(url, {
-  //   method: "POST",
-  //   headers: {
-  //     "Content-Type": "application/xml",
-  //     Accept: "application/xml",
-  //   },
-  //   body: xml,
-  // });
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/xml",
+      Accept: "application/xml",
+    },
+    body: xml,
+  });
 
-  // if (!response.ok) {
-  //   const errorText = await response.text();
-  //   throw new Error(`HTTP ${response.status}: ${errorText}`);
-  // }
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText}`);
+  }
 
-  // const responseText = await response.text();
-  // const parsedResponse = await parsePrestashopXML(responseText);
+  const responseText = await response.text();
+  const parsedResponse = await parsePrestashopXML(responseText);
 
-  // return parsedResponse;
+  return parsedResponse;
 }
 
 /**

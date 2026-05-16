@@ -230,7 +230,7 @@ export function ListProduct() {
       {data && (
         <ul>
           {console.log("Données finaleeeeees :", data)}
-          {/* {console.log("data :", data.categories.category[0]['@_href'].replace("http://localhost/prestashop/api/", ""))} */}
+          {/* {console.log("data :", data.categories.category[0]['@_href'].replace("http://localhost/prestashop2/api/", ""))} */}
           {/* <p>Données reçues ({parsedData.products.product.length} categories)</p> */}
 
           {/* {parsedData.products.product.map((item, index) => (

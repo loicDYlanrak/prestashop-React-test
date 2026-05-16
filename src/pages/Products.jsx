@@ -61,7 +61,7 @@ export default function Products() {
         if (productData.associations.images.image[0]) {
           image = productData.associations.images.image[0]['@_href']
         }        
-        image += "?ws_key=Q3971RIRQJVRL981S2KCEGBBMWILW8H1"
+        image += "?ws_key=2LA1668U53GC9T35AIT5Y3P7E8CKG7LL"
         
         return {
           id: parseInt(productData.id['#cdata']),
@@ -95,8 +95,8 @@ export default function Products() {
 
   const fetchCategoryName = async (categoryId) => {
     try {
-      const apiKey = "Q3971RIRQJVRL981S2KCEGBBMWILW8H1";
-      const baseUrl = "http://localhost/prestashop/api";
+      const apiKey = "2LA1668U53GC9T35AIT5Y3P7E8CKG7LL";
+      const baseUrl = "http://localhost/prestashop2/api";
       const url = `${baseUrl}/categories/${categoryId}?ws_key=${apiKey}&display=[id,name]`;
       
       const response = await fetch(url);

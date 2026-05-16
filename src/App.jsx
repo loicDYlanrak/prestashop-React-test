@@ -28,6 +28,7 @@ import { CartProvider } from "./context/CartContext";
 import UserSelectionPage from "./pages/frontoffice/UserSelectionPage";
 import CartPage from "./pages/frontoffice/CartPage";
 import { ListProduct } from "./components/ListProduct";
+import OrderSummary from "./pages/frontoffice/OrderSummary";
 
 function ErrorFallback({ error, resetErrorBoundary }) {
   return (
@@ -52,6 +53,7 @@ function App() {
               <Route path="/select-user" element={<UserSelectionPage />} />
               <Route path="/" element={<FrontLayout />}>
                 <Route index element={<Navigate to="/select-user" replace />} />
+                <Route path="/orders" element={<OrderSummary />} />
                 <Route path="/cart" element={<CartPage />} />
                 <Route path="products" element={<ProductsList />} />
                 <Route path="product/:id" element={<ProductDetail />} />

@@ -4,8 +4,8 @@ import { parsePrestashopXML } from "../utils/ParserXml";
 
 // Configuration par défaut
 const DEFAULT_CONFIG = {
-  apiKey: "Q3971RIRQJVRL981S2KCEGBBMWILW8H1",
-  baseUrl: "http://localhost/prestashop/api"
+  apiKey: "2LA1668U53GC9T35AIT5Y3P7E8CKG7LL",
+  baseUrl: "http://localhost/prestashop2/api"
 };
 
 // Mapping des endpoints par ressource

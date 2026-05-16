@@ -1,42 +1,45 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import './FrontHeader.css'
-import UserSelectionModal from './UserSelectionModal'
-import { useCart } from '../../context/CartContext' 
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import "./FrontHeader.css";
+import UserSelectionModal from "./UserSelectionModal";
+import { useCart } from "../../context/CartContext";
 
 export default function FrontHeader() {
-  const [showUserModal, setShowUserModal] = useState(false)
-  const [user, setUser] = useState(null)
-  const navigate = useNavigate()
-  const { cart } = useCart()
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
+  const { cart } = useCart();
 
   const handleUserSelect = (userData) => {
-    setUser(userData)
-    setShowUserModal(false)
-    
+    setUser(userData);
+    setShowUserModal(false);
+
     if (userData.isAnonymous) {
-      sessionStorage.setItem('user', JSON.stringify({ ...userData, isAnonymous: true }))
+      sessionStorage.setItem(
+        "user",
+        JSON.stringify({ ...userData, isAnonymous: true }),
+      );
     } else {
-      localStorage.setItem('user', JSON.stringify(userData))
+      localStorage.setItem("user", JSON.stringify(userData));
     }
-  }
+  };
 
   const handleLogout = () => {
-    setUser(null)
-    localStorage.removeItem('user')
-    sessionStorage.removeItem('user')
-    navigate('/')
-  }
+    setUser(null);
+    localStorage.removeItem("user");
+    sessionStorage.removeItem("user");
+    navigate("/");
+  };
 
   useState(() => {
-    const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user')
+    const storedUser =
+      localStorage.getItem("user") || sessionStorage.getItem("user");
     if (storedUser) {
-      setUser(JSON.parse(storedUser))
+      setUser(JSON.parse(storedUser));
     }
-  }, [])
+  }, []);
 
-  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0)  // Ajout
-
+  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0); // Ajout
 
   return (
     <>
@@ -48,11 +51,18 @@ export default function FrontHeader() {
           </Link>
 
           <nav className="front-nav">
-            <Link to="/" className="nav-link">Accueil</Link>
-            <Link to="/products" className="nav-link">Produits</Link>
+            <Link to="/" className="nav-link">
+              Accueil
+            </Link>
+            <Link to="/products" className="nav-link">
+              Produits
+            </Link>
+            {user && (
+              <Link to="/orders" className="nav-link">
+                Mes Commandes
+              </Link>
+            )}
           </nav>
-
-          
 
           <div className="front-header-actions">
             <Link to="/cart" className="cart-link">
@@ -64,29 +74,31 @@ export default function FrontHeader() {
             {user ? (
               <div className="user-menu">
                 <span className="user-name">
-                  {user.isAnonymous ? ' Invité' : `${user.firstname} ${user.lastname}`}
+                  {user.isAnonymous
+                    ? " Invité"
+                    : `${user.firstname} ${user.lastname}`}
                 </span>
                 <button onClick={handleLogout} className="btn-logout-front">
                   Déconnexion
                 </button>
               </div>
             ) : (
-              <button 
+              <button
                 className="btn-login"
                 onClick={() => setShowUserModal(true)}
               >
-                 Se connecter / Choisir un utilisateur
+                Se connecter / Choisir un utilisateur
               </button>
             )}
           </div>
         </div>
       </header>
 
-      <UserSelectionModal 
+      <UserSelectionModal
         isOpen={showUserModal}
         onClose={() => setShowUserModal(false)}
         onUserSelect={handleUserSelect}
       />
     </>
-  )
+  );
 }

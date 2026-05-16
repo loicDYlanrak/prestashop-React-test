@@ -1,13 +1,12 @@
 // src/pages/frontoffice/CartPage.jsx
 import { useCart } from "../../context/CartContext";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import "./CartPage.css";
 import { addResource } from "../../hooks/useMutationPrestashop";
 
 export default function CartPage() {
-  const { cart, cartTotal, removeFromCart, updateQuantity, clearCart } =
-    useCart();
-  const navigate = useNavigate();
+  
+  const { cart, removeFromCart, updateQuantity, clearCart } = useCart();
 
   const handleQuantityChange = (productId, newQuantity) => {
     if (newQuantity >= 1) {
@@ -25,42 +24,22 @@ export default function CartPage() {
     }
   };
 
-  const handleCheckout = () => {
-    navigate("/checkout");
-  };
-
   const handleValidateCart = async () => {
     const cartRows = [];
-    const addressId = JSON.parse(localStorage.getItem("addressId")); 
+    const user = JSON.parse(localStorage.getItem("user"));
+    console.log("cart", cart);
 
-    for (const item of cart.panier) {
-      const productInfo = cart.products.find(
-        (product) => product.reference === item.product_reference
-      ); 
-
-      if (!productInfo) continue;
-
+    for (const item of cart) {
       let attributeId = "0";
-      if (item.attribute_name) {
-        const targetValue = item.attribute_name.toLowerCase();
-        const productRef = item.product_reference;
 
-        for (let [key, value] of Object.entries(productInfo.combinations)) {
-          const keyParts = key.split("|");
-          const keyRef = keyParts[0];
-          const keyValue = keyParts[keyParts.length - 1];
-
-          if (keyRef === productRef && keyValue.toLowerCase() === targetValue) {
-            attributeId = value;
-            break;
-          }
-        }
+      if (item.selectedCombination && item.selectedCombination.id) {
+        attributeId = item.selectedCombination.id.toString();
       }
 
       cartRows.push({
-        id_product: productInfo.id.toString(),
+        id_product: item.id.toString(),
         id_product_attribute: attributeId,
-        id_address_delivery: addressId,
+        id_address_delivery: user?.addressId,
         id_customization: "0",
         quantity: item.quantity.toString(),
       });
@@ -72,10 +51,10 @@ export default function CartPage() {
     }
 
     const cartData = {
-      id_address_delivery: addressId,
-      id_address_invoice: addressId,
+      id_address_delivery: user?.addressId,
+      id_address_invoice: user?.addressId,
       id_currency: "1",
-      id_customer: JSON.parse(localStorage.getItem("customerId")), // Retrieve customerId from localStorage
+      id_customer: user?.id,
       id_guest: 0,
       id_lang: "1",
       id_shop_group: "1",
@@ -92,54 +71,43 @@ export default function CartPage() {
       },
     };
 
-
     const response = await addResource("cart", cartData, {});
     console.log("Cart Save Response:", response);
+    localStorage.setItem("cartId", response?.cart?.id?.["#cdata"]);
   };
 
   const handleValidateOrder = async () => {
     const orderRows = [];
-    let totalProducts = 0;
     let totalPaidTTC = 0;
-    const addressId = JSON.parse(localStorage.getItem("addressId")); // Retrieve addressId from localStorage
-    const customerId = JSON.parse(localStorage.getItem("customerId")); // Retrieve customerId from localStorage
+    const user = JSON.parse(localStorage.getItem("user"));
 
-    for (const item of cart.panier) {
-      const productInfo = cart.products.find(
-        (product) => product.reference === item.product_reference
-      ); // Replace entityCache with cart.products
-
-      if (!productInfo) continue;
-
+    for (const item of cart) {
       let attributeId = "0";
-      if (item.attribute_name) {
-        const targetValue = item.attribute_name.toLowerCase();
-        const productRef = item.product_reference;
 
-        for (let [key, value] of Object.entries(productInfo.combinations)) {
-          const keyParts = key.split("|");
-          const keyRef = keyParts[0];
-          const keyValue = keyParts[keyParts.length - 1];
-
-          if (keyRef === productRef && keyValue.toLowerCase() === targetValue) {
-            attributeId = value;
-            break;
-          }
-        }
+      if (item.selectedCombination && item.selectedCombination.id) {
+        attributeId = item.selectedCombination.id.toString();
       }
 
-      const itemPrice = productInfo.price;
-      const taxRate = productInfo.taxRate || 20; // Default tax rate is 20%
-      const itemPriceTTC = itemPrice * (1 + taxRate / 100) * item.quantity; // Calculate price with tax
-      totalPaidTTC += itemPriceTTC;
+      let itemPrice;
+      if (item.selectedCombination && item.selectedCombination.price > 0) {
+        const totalHT =
+          item.price / (1 + (item.taxRate || 20) / 100) +
+          item.selectedCombination.price;
+        itemPrice = totalHT * (1 + (item.taxRate || 20) / 100);
+      } else if (item.specificPrice && item.specificPrice < item.price) {
+        itemPrice = item.specificPrice;
+      } else {
+        itemPrice = item.price;
+      }
+
+      const itemTotalTTC = itemPrice * item.quantity;
+      totalPaidTTC += itemTotalTTC;
 
       orderRows.push({
-        product_id: productInfo.id.toString(),
+        product_id: item.id.toString(),
         product_attribute_id: attributeId,
         product_quantity: item.quantity.toString(),
       });
-
-      totalProducts += item.quantity;
     }
 
     if (orderRows.length === 0) {
@@ -148,12 +116,12 @@ export default function CartPage() {
     }
 
     const orderData = {
-      id_address_delivery: addressId,
-      id_address_invoice: addressId,
-      id_cart: JSON.parse(localStorage.getItem("cartId")), 
+      id_address_delivery: user?.addressId,
+      id_address_invoice: user?.addressId,
+      id_cart: JSON.parse(localStorage.getItem("cartId")),
       id_currency: "1",
       id_lang: "1",
-      id_customer: customerId,
+      id_customer: user?.id,
       id_carrier: "1",
       module: "ps_cashondelivery",
       valid: "1",
@@ -166,7 +134,7 @@ export default function CartPage() {
       mobile_theme: "0",
       total_paid: totalPaidTTC.toFixed(8),
       total_paid_real: "0",
-      total_products: totalProducts.toFixed(8),
+      total_products: "0",
       total_products_wt: "0",
       round_mode: "2",
       round_type: "2",
@@ -176,11 +144,27 @@ export default function CartPage() {
       },
     };
 
-
     const response = await addResource("order", orderData, {});
     console.log("Order Save Response:", response);
   };
+  const calculateCartTotal = () => {
+    return cart.reduce((total, item) => {
+      let itemPrice;
 
+      if (item.selectedCombination && item.selectedCombination.price > 0) {
+        const totalHT =
+          item.price / (1 + (item.taxRate || 20) / 100) +
+          item.selectedCombination.price;
+        itemPrice = totalHT * (1 + (item.taxRate || 20) / 100);
+      } else if (item.specificPrice && item.specificPrice < item.price) {
+        itemPrice = item.specificPrice;
+      } else {
+        itemPrice = item.price;
+      }
+
+      return total + itemPrice * item.quantity;
+    }, 0);
+  };
   if (cart.length === 0) {
     return (
       <div className="cart-empty">
@@ -225,7 +209,7 @@ export default function CartPage() {
             const itemPrice = getItemPrice(item);
             const itemTotal = itemPrice * item.quantity;
             return (
-              <div key={item.id} className="cart-item">
+              <div key={item.cartItemId} className="cart-item">
                 <div className="cart-item-product">
                   <img
                     src={item.imageUrl}
@@ -278,7 +262,7 @@ export default function CartPage() {
                 <div className="cart-item-quantity">
                   <button
                     onClick={() =>
-                      handleQuantityChange(item.id, item.quantity - 1)
+                      handleQuantityChange(item.cartItemId, item.quantity - 1)
                     }
                     className="quantity-btn"
                   >
@@ -289,17 +273,16 @@ export default function CartPage() {
                     value={item.quantity}
                     onChange={(e) =>
                       handleQuantityChange(
-                        item.id,
+                        item.cartItemId,
                         parseInt(e.target.value) || 1,
                       )
                     }
                     min="1"
-                    max={item.quantity}
                     className="quantity-input"
                   />
                   <button
                     onClick={() =>
-                      handleQuantityChange(item.id, item.quantity + 1)
+                      handleQuantityChange(item.cartItemId, item.quantity + 1)
                     }
                     className="quantity-btn"
                   >
@@ -311,7 +294,7 @@ export default function CartPage() {
 
                 <div className="cart-item-remove">
                   <button
-                    onClick={() => handleRemoveItem(item.id)}
+                    onClick={() => handleRemoveItem(item.cartItemId)}
                     className="remove-btn"
                     title="Supprimer"
                   >
@@ -333,7 +316,7 @@ export default function CartPage() {
 
           <div className="summary-row">
             <span>Sous-total :</span>
-            <span>{cartTotal.toFixed(2)} €</span>
+            <span>{calculateCartTotal().toFixed(2)} €</span>
           </div>
 
           <div className="summary-row">
@@ -345,18 +328,19 @@ export default function CartPage() {
 
           <div className="summary-total">
             <span>Total TTC :</span>
-            <span>{cartTotal.toFixed(2)} €</span>
+            <span>{calculateCartTotal().toFixed(2)} €</span>
           </div>
 
           <div className="cart-actions">
             <button onClick={handleClearCart} className="btn-clear">
               Vider le panier
             </button>
-            <button onClick={handleCheckout} className="btn-checkout">
-              Valider la commande →
+            <button className="btn-checkout" onClick={handleValidateCart}>
+              Valider Panier
             </button>
-            <button onClick={handleValidateCart}>Valider Panier</button>
-            <button onClick={handleValidateOrder}>Valider Commande</button>
+            <button className="btn-checkout" onClick={handleValidateOrder}>
+              Valider Commande
+            </button>
           </div>
 
           <Link to="/products" className="btn-continue">

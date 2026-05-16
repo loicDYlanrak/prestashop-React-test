@@ -177,7 +177,6 @@ export default function ProductDetail() {
         };
       });
 
-      // 8. Récupérer les stocks
       const stocksData =
         productData.associations?.stock_availables?.stock_available;
       const stockArray = stocksData
@@ -191,8 +190,6 @@ export default function ProductDetail() {
         attributeId: stock.id_product_attribute?.["#cdata"],
         quantity: parseInt(stock.quantity?.["#cdata"] || 0),
       }));
-
-      // Récupérer les détails complets des stocks
       const stocksDetails = await Promise.all(
         stocks.map(async (stock) => {
           if (stock.id) {
@@ -237,7 +234,7 @@ export default function ProductDetail() {
 
         let combinationImageUrl = null;
         if (combo.imageId && combo.imageId !== "0") {
-          combinationImageUrl = `http://localhost/prestashop/api/images/products/${id}/${combo.imageId}?ws_key=Q3971RIRQJVRL981S2KCEGBBMWILW8H1`;
+          combinationImageUrl = `http://localhost/prestashop2/api/images/products/${id}/${combo.imageId}?ws_key=2LA1668U53GC9T35AIT5Y3P7E8CKG7LL`;
         }
 
         return {
@@ -357,6 +354,37 @@ export default function ProductDetail() {
       ),
     );
   };
+  const getProductStock = async (productData) => {
+    try {
+      const stocksData =
+        productData.associations?.stock_availables?.stock_available;
+      if (!stocksData) return 0;
+
+      const stockArray = Array.isArray(stocksData)
+        ? stocksData
+        : [stocksData];
+
+      if (stockArray.length === 0) return 0;
+
+      const firstStock = stockArray[0];
+      const stockId = firstStock.id?.["#cdata"];
+
+      if (stockId) {
+        const stockResponse = await fetchPrestashop(
+          `stock_availables/${stockId}`,
+        );
+        if (stockResponse.data?.stock_available?.quantity) {
+          return parseInt(stockResponse.data.stock_available.quantity["#cdata"] || 0);
+        }
+      }
+
+      return 0;
+    } catch (error) {
+      console.error("Error fetching product stock:", error);
+      return 0;
+    }
+  };
+
   const transformSingleProduct = async (item) => {
     const productData = item.product;
     // console.log("Transforming product:", productData);
@@ -454,7 +482,7 @@ export default function ProductDetail() {
         if (imageId && productData.id?.["#cdata"]) {
           images.push({
             id: imageId,
-            url: `http://localhost/prestashop/api/images/products/${productData.id["#cdata"]}/${imageId}?ws_key=Q3971RIRQJVRL981S2KCEGBBMWILW8H1`,
+            url: `http://localhost/prestashop2/api/images/products/${productData.id["#cdata"]}/${imageId}?ws_key=2LA1668U53GC9T35AIT5Y3P7E8CKG7LL`,
           });
         }
       }
@@ -466,6 +494,13 @@ export default function ProductDetail() {
         ? productData.associations.combinations.combination.length > 0
         : true);
     // console.log("Product has combinations:", hasCombinations);
+
+    // Récupérer le stock pour les produits sans combinaisons
+    let productQuantity = 0;
+    if (!hasCombinations) {
+      productQuantity = await getProductStock(productData);
+    }
+
     return {
       id: parseInt(productData.id?.["#cdata"]),
       name: name,
@@ -481,7 +516,7 @@ export default function ProductDetail() {
           : "https://via.placeholder.com/600x600?text=No+Image",
       images: images,
       reference: productData.reference?.["#cdata"] || "",
-      quantity: 0,
+      quantity: productQuantity,
       active: productData.active?.["#cdata"] === "1",
       taxRate: taxRate,
       hasCombinations: hasCombinations,

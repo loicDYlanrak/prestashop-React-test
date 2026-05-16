@@ -75,7 +75,7 @@ export default function ProductsList() {
 
     try {
       const relativeUrl = stockUrl.replace(
-        "http://localhost/prestashop/api/",
+        "http://localhost/prestashop2/api/",
         "",
       );
       const response = await fetchPrestashop(relativeUrl);
@@ -176,7 +176,7 @@ export default function ProductsList() {
           ? imagesData[0]?.id?.["#cdata"]
           : imagesData?.id?.["#cdata"];
         if (imageId && productData.id?.["#cdata"]) {
-          imageUrl = `http://localhost/prestashop/api/images/products/${productData.id["#cdata"]}/${imageId}?ws_key=Q3971RIRQJVRL981S2KCEGBBMWILW8H1`;
+          imageUrl = `http://localhost/prestashop2/api/images/products/${productData.id["#cdata"]}/${imageId}?ws_key=2LA1668U53GC9T35AIT5Y3P7E8CKG7LL`;
         }
       }
 
