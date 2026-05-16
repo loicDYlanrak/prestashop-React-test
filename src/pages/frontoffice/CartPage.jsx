@@ -1,13 +1,12 @@
 // src/pages/frontoffice/CartPage.jsx
 import { useCart } from "../../context/CartContext";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import "./CartPage.css";
 import { addResource } from "../../hooks/useMutationPrestashop";
 
 export default function CartPage() {
-  
   const { cart, removeFromCart, updateQuantity, clearCart } = useCart();
-
+  const navigate = useNavigate();
   const handleQuantityChange = (productId, newQuantity) => {
     if (newQuantity >= 1) {
       updateQuantity(productId, newQuantity);
@@ -24,10 +23,21 @@ export default function CartPage() {
     }
   };
 
-  const handleValidateCart = async () => {
+  const handleSaveCart = async () => {
+    // Vérifier si l'utilisateur est connecté
+    const user =
+      JSON.parse(localStorage.getItem("user")) ||
+      JSON.parse(sessionStorage.getItem("user"));
+
+    if (!user) {
+      // Ouvrir le modal de choix utilisateur
+      const modalEvent = new CustomEvent("openUserModal");
+      window.dispatchEvent(modalEvent);
+      return;
+    }
+
     const cartRows = [];
-    const user = JSON.parse(localStorage.getItem("user"));
-    console.log("cart", cart);
+    const addressId = user?.addressId || "1";
 
     for (const item of cart) {
       let attributeId = "0";
@@ -39,7 +49,7 @@ export default function CartPage() {
       cartRows.push({
         id_product: item.id.toString(),
         id_product_attribute: attributeId,
-        id_address_delivery: user?.addressId,
+        id_address_delivery: addressId,
         id_customization: "0",
         quantity: item.quantity.toString(),
       });
@@ -51,11 +61,11 @@ export default function CartPage() {
     }
 
     const cartData = {
-      id_address_delivery: user?.addressId,
-      id_address_invoice: user?.addressId,
+      id_address_delivery: addressId,
+      id_address_invoice: addressId,
       id_currency: "1",
-      id_customer: user?.id,
-      id_guest: 0,
+      id_customer: user?.id || "0",
+      id_guest: user?.isAnonymous ? "1" : "0",
       id_lang: "1",
       id_shop_group: "1",
       id_shop: "1",
@@ -73,79 +83,25 @@ export default function CartPage() {
 
     const response = await addResource("cart", cartData, {});
     console.log("Cart Save Response:", response);
-    localStorage.setItem("cartId", response?.cart?.id?.["#cdata"]);
+
+    if (response?.cart?.id?.["#cdata"]) {
+      localStorage.setItem("cartId", response.cart.id["#cdata"]);
+      // navigate("/order-summary");
+    }
   };
 
-  const handleValidateOrder = async () => {
-    const orderRows = [];
-    let totalPaidTTC = 0;
-    const user = JSON.parse(localStorage.getItem("user"));
+  const handleGoToSummary = () => {
+    const user =
+      JSON.parse(localStorage.getItem("user")) ||
+      JSON.parse(sessionStorage.getItem("user"));
 
-    for (const item of cart) {
-      let attributeId = "0";
-
-      if (item.selectedCombination && item.selectedCombination.id) {
-        attributeId = item.selectedCombination.id.toString();
-      }
-
-      let itemPrice;
-      if (item.selectedCombination && item.selectedCombination.price > 0) {
-        const totalHT =
-          item.price / (1 + (item.taxRate || 20) / 100) +
-          item.selectedCombination.price;
-        itemPrice = totalHT * (1 + (item.taxRate || 20) / 100);
-      } else if (item.specificPrice && item.specificPrice < item.price) {
-        itemPrice = item.specificPrice;
-      } else {
-        itemPrice = item.price;
-      }
-
-      const itemTotalTTC = itemPrice * item.quantity;
-      totalPaidTTC += itemTotalTTC;
-
-      orderRows.push({
-        product_id: item.id.toString(),
-        product_attribute_id: attributeId,
-        product_quantity: item.quantity.toString(),
-      });
-    }
-
-    if (orderRows.length === 0) {
-      console.error("Aucun produit valide dans la commande");
+    if (!user) {
+      const modalEvent = new CustomEvent("openUserModal");
+      window.dispatchEvent(modalEvent);
       return;
     }
-
-    const orderData = {
-      id_address_delivery: user?.addressId,
-      id_address_invoice: user?.addressId,
-      id_cart: JSON.parse(localStorage.getItem("cartId")),
-      id_currency: "1",
-      id_lang: "1",
-      id_customer: user?.id,
-      id_carrier: "1",
-      module: "ps_cashondelivery",
-      valid: "1",
-      id_shop_group: "1",
-      id_shop: "1",
-      payment: "Paiement comptant à la livraison (Cash on delivery)",
-      recyclable: "0",
-      gift: "0",
-      gift_message: "",
-      mobile_theme: "0",
-      total_paid: totalPaidTTC.toFixed(8),
-      total_paid_real: "0",
-      total_products: "0",
-      total_products_wt: "0",
-      round_mode: "2",
-      round_type: "2",
-      conversion_rate: "1",
-      associations: {
-        order_rows: { order_row: orderRows },
-      },
-    };
-
-    const response = await addResource("order", orderData, {});
-    console.log("Order Save Response:", response);
+    navigate("/order-summary");
+    // handleSaveCart();
   };
   const calculateCartTotal = () => {
     return cart.reduce((total, item) => {
@@ -335,11 +291,11 @@ export default function CartPage() {
             <button onClick={handleClearCart} className="btn-clear">
               Vider le panier
             </button>
-            <button className="btn-checkout" onClick={handleValidateCart}>
-              Valider Panier
+            <button className="btn-checkout" onClick={handleSaveCart}>
+              Valider le panier
             </button>
-            <button className="btn-checkout" onClick={handleValidateOrder}>
-              Valider Commande
+            <button className="btn-checkout" onClick={handleGoToSummary}>
+              Valider la commande
             </button>
           </div>
 

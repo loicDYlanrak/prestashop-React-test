@@ -5,10 +5,11 @@
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   cursor: pointer;
+  transform: translateY(-8px);
 }
 
 .product-card:hover {
-  transform: translateY(-8px);
+  transform: translateY(-16px);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
 }
 
@@ -140,7 +141,7 @@
 .btn-add-to-cart:active {
   transform: translateY(0);
 }
-
+/* Styles des badges - toujours visibles */
 .product-badge {
   position: absolute;
   top: 12px;
@@ -152,14 +153,51 @@
   color: white;
   z-index: 10;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  animation: pulse 1.5s ease-in-out infinite;
 }
 
+.discount-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: bold;
+  z-index: 10;
+}
+
+.inactive-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  z-index: 10;
+}
+
+/* Animation pour le badge HOT */
 .badge-hot {
   background: linear-gradient(135deg, #ff416c, #ff4b2b);
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
 .badge-new {
   background: linear-gradient(135deg, #4facfe, #00f2fe);
-  animation: none;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
 }

@@ -8,7 +8,9 @@ import CategoryFilter from "../../components/frontoffice/CategoryFilter";
 import "./ProductsList.css";
 
 export default function ProductsList() {
-  const { loading, data, errors } = useFetchAllProduits("products", {restUrl: "limit=0,15"});
+  const { loading, data, errors } = useFetchAllProduits("products", {
+    restUrl: "limit=0,15",
+  });
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -108,13 +110,18 @@ export default function ProductsList() {
     const diffTime = productDate - today;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    // Sortie dans 1 jour ou moins = HOT
-    if (diffDays <= 1 && diffDays >= 0) {
+    // console.log(`Date produit: ${availableDate}, Aujourd'hui: ${today.toISOString().split("T")[0]}, Différence: ${diffDays} jours`,);
+
+    if (diffDays === 0) {
+      // console.log(`Produit HOT - sorti aujourd'hui`);
       return "HOT";
-    }
-    // Sortie dans 7 jours ou moins = NEW
-    else if (diffDays <= 7 && diffDays > 1) {
+    } else if (diffDays >= -7 && diffDays < 0) {
+      // console.log(`Produit NEW - sorti il y a ${Math.abs(diffDays)} jours`);
       return "NEW";
+    }
+    else if (diffDays < -7) {
+      // console.log(`Produit ancien - sorti il y a ${Math.abs(diffDays)} jours`);
+      return null;
     }
 
     return null;
@@ -123,7 +130,7 @@ export default function ProductsList() {
   const transformProduct = useCallback(
     async (item) => {
       const productData = item.product;
-      console.log("Transforming product:", productData);
+      // console.log("Transforming product:", productData);
       const name = productData.name?.language?.["#cdata"] || "";
 
       let description = "";
@@ -141,7 +148,6 @@ export default function ProductsList() {
         ];
 
       const availableDate = productData?.available_date?.["#cdata"] || null;
-    
 
       const [taxRate, quantity] = await Promise.all([
         getTaxRate(idTaxeRuleGroupe),

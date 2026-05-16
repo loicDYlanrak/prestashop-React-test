@@ -870,7 +870,7 @@ export async function importAddresses(
  */
 export async function importCarts(cartsData, options = {}) {
   const results = [];
-
+  // console.log("cartsData:", cartsData)
   for (let i = 0; i < cartsData.length; i++) {
     const cart = cartsData[i];
     const customerId = entityCache.customers.get(cart.client_email);
@@ -884,7 +884,6 @@ export async function importCarts(cartsData, options = {}) {
       continue;
     }
 
-    // Récupérer l'adresse du client
     const alias = `Adresse_${cart.client_nom?.replace(/\s/g, "_") || customerId?.["#cdata"]}`;
     const addressId = entityCache.addresses.get(alias);
     // console.log("addressId:", addressId)
@@ -981,6 +980,21 @@ export async function importCarts(cartsData, options = {}) {
             quantity: item.quantity,
           })),
         });
+
+        const originalDate = cart.date;
+        const [day, month, year] = originalDate.split("/");
+        const formattedDate = `${year}-${month}-${day} 12:00:57`;
+        const cartPatch = {
+          id: cartId?.["#cdata"],
+          date_add: formattedDate,
+          date_upd: formattedDate,
+        };
+        try {
+          await updateResource("cart", cartId?.["#cdata"], cartPatch, options);
+        } catch (error) {
+          console.error(`Erreur mise à jour cart ${cartId?.["#cdata"]}:`, error);
+        }
+
         results.push({ email: cart.client_email, cartId, success: true });
       } else {
         results.push({
@@ -1006,15 +1020,17 @@ export async function importCarts(cartsData, options = {}) {
 const getProductPriceTTC = (productInfo, combinationAttributeId, quantity) => {
   if (combinationAttributeId && combinationAttributeId !== "0") {
     const combinationPriceKey = `${productInfo.id}|${combinationAttributeId}`;
-    const combinationPrice = entityCache.combinationPrices.get(combinationPriceKey);
-    
+    const combinationPrice =
+      entityCache.combinationPrices.get(combinationPriceKey);
+
     if (combinationPrice !== undefined) {
       return combinationPrice * quantity;
     }
   }
-  
+
   // Le produit stocké a prix_ht et tax_rate, donc on recalc le TTC
-  const basePriceTTC = productInfo.base_price_ht * (1 + productInfo.tax_rate / 100);
+  const basePriceTTC =
+    productInfo.base_price_ht * (1 + productInfo.tax_rate / 100);
   return basePriceTTC * quantity;
 };
 /**
@@ -1022,7 +1038,7 @@ const getProductPriceTTC = (productInfo, combinationAttributeId, quantity) => {
  */
 export async function importOrders(ordersData, options = {}) {
   const results = [];
-  // console.log("ordersData:", ordersData)
+  // console.log("ordersData:", ordersData);
   for (let i = 0; i < ordersData.length; i++) {
     const order = ordersData[i];
     const customerId = entityCache.customers.get(order.client_email);
@@ -1125,7 +1141,11 @@ export async function importOrders(ordersData, options = {}) {
           // console.log("Match trouvé - attributeId:", attributeId);
         }
         const attributeIdValue = attributeId?.["#cdata"] || attributeId;
-        const itemPriceTTC = getProductPriceTTC(productInfo, attributeIdValue, item.quantity);
+        const itemPriceTTC = getProductPriceTTC(
+          productInfo,
+          attributeIdValue,
+          item.quantity,
+        );
         totalPaidTTC += itemPriceTTC;
         orderRows.push({
           product_id: productInfo.id.toString(),
@@ -1173,7 +1193,7 @@ export async function importOrders(ordersData, options = {}) {
           order_rows: { order_row: orderRows },
         },
       };
-    //   console.log("orderData:", orderData);
+      //   console.log("orderData:", orderData);
 
       const response = await addResource("order", orderData, options);
       const orderId = response?.order?.id;
@@ -1181,6 +1201,21 @@ export async function importOrders(ordersData, options = {}) {
       if (orderId) {
         entityCache.orders.set(orderId, orderId);
         results.push({ email: order.client_email, orderId, success: true });
+
+        const originalDate = order.date;
+        const [day, month, year] = originalDate.split("/");
+        const formattedDate = `${year}-${month}-${day} 12:00:57`;
+        const cartPatch = {
+          id: orderId?.["#cdata"],
+          date_add: formattedDate,
+          date_upd: formattedDate,
+        };
+        // console.log("orderId:", orderId);
+        try {
+          await updateResource("order", orderId?.["#cdata"], cartPatch, options);
+        } catch (error) {
+          console.error(`Erreur mise à jour order ${orderId?.["#cdata"]}:`, error);
+        }
       } else {
         results.push({
           email: order.client_email,

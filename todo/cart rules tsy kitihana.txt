@@ -156,16 +156,15 @@ Par jour
     dernier status de chaque commande 
 tableau sur l’évolution du stock journalier d’un produit
     un produit a eu ce stock ce jour 
+  
 
 arranger dans etat de mes commandes lorsque il n y a qu une seule commande
 arranger le total ht des produits 
 faire update de la date add de panier et de orders pendant l import
 faire aussi test avec des donnes des badge hot et new dans le front office 
-gere le pagination des produits dans la liste de produits 
 
 si un utilisateur qui n est pas connecter essaye de faire une commande 
 il faut redigirer vers un login
-
 ajouter une page de resumer d un commande avant de valider 
 ajouter update de status de commande a annule dans la liste de commande backoffice
 verifier dans la liste de commande dans le dashboard que si commande annule on ne compte pas le chiffre d affaire
@@ -178,4 +177,8 @@ tester evolution du stock d un produit avec et sans declinaison
 
 faire un todo list des taches 
 
+gere le pagination des produits dans la liste de produits 
 charger le panier d un utilisateur(si possible)
+
+rehefa mapiditra stock ana produit ve dia tokony alaina en compte ilay data nampidirana azy 
+satria mety raisina en compte hoe t amin ity ilay produit zao no stock

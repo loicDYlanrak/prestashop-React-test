@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./FrontHeader.css";
 import UserSelectionModal from "./UserSelectionModal";
@@ -9,6 +9,18 @@ export default function FrontHeader() {
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
   const { cart } = useCart();
+
+  useEffect(() => {
+    const handleOpenModal = () => {
+      setShowUserModal(true);
+    };
+
+    window.addEventListener("openUserModal", handleOpenModal);
+
+    return () => {
+      window.removeEventListener("openUserModal", handleOpenModal);
+    };
+  }, []);
 
   const handleUserSelect = (userData) => {
     setUser(userData);
@@ -39,8 +51,7 @@ export default function FrontHeader() {
     }
   }, []);
 
-  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0); // Ajout
-
+  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   return (
     <>
       <header className="front-header">
@@ -56,6 +67,9 @@ export default function FrontHeader() {
             </Link>
             <Link to="/products" className="nav-link">
               Produits
+            </Link>
+            <Link to="/select-user" className="nav-link">
+              Choisir Utilisateur
             </Link>
             {user && (
               <Link to="/orders" className="nav-link">

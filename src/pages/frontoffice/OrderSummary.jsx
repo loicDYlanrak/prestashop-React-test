@@ -11,7 +11,8 @@ export default function OrderSummary() {
 
   useEffect(() => {
     async function loadOrdersWithStatus() {
-      const userdata = localStorage.getItem("user") || sessionStorage.getItem("user");
+      const userdata =
+        localStorage.getItem("user") || sessionStorage.getItem("user");
       if (!userdata) {
         setError("Aucun utilisateur connecté");
         setLoading(false);
@@ -21,7 +22,7 @@ export default function OrderSummary() {
       try {
         const user = JSON.parse(userdata);
         const userID = user?.id;
-        
+
         if (!userID) {
           setError("Utilisateur non trouvé");
           setLoading(false);
@@ -32,7 +33,7 @@ export default function OrderSummary() {
         const orderResponse = await fetchPrestashop("orders", {
           urlRest: `filter[id_customer]=[${userID}]`,
         });
-        
+
         const rawOrder = orderResponse.data?.orders?.order;
         const orderIDs = []
           .concat(rawOrder ?? [])
@@ -48,8 +49,8 @@ export default function OrderSummary() {
         // Récupérer les détails de chaque commande
         const ordersDetails = await Promise.all(
           orderIDs.map((id) =>
-            fetchPrestashop(`orders/${id}`, { urlRest: "" })
-          )
+            fetchPrestashop(`orders/${id}`, { urlRest: "" }),
+          ),
         );
 
         // Récupérer les status de chaque commande
@@ -57,23 +58,29 @@ export default function OrderSummary() {
           ordersDetails.map(async (orderDetail) => {
             const orderData = orderDetail.data?.order;
             const statusId = orderData?.current_state?.["#cdata"];
-            
+
             if (statusId) {
-              const statusResponse = await fetchPrestashop(`order_states/${statusId}`, { urlRest: "" });
-              const statusName = statusResponse.data?.order_state?.name?.language?.["#cdata"] || "Statut inconnu";
+              const statusResponse = await fetchPrestashop(
+                `order_states/${statusId}`,
+                { urlRest: "" },
+              );
+              const statusName =
+                statusResponse.data?.order_state?.name?.language?.["#cdata"] ||
+                "Statut inconnu";
               return {
                 ...orderData,
                 statusName,
-                statusColor: statusResponse.data?.order_state?.color?.["#cdata"] || "#999"
+                statusColor:
+                  statusResponse.data?.order_state?.color?.["#cdata"] || "#999",
               };
             }
-            
+
             return {
               ...orderData,
               statusName: "Statut inconnu",
-              statusColor: "#999"
+              statusColor: "#999",
             };
-          })
+          }),
         );
 
         setOrders(ordersWithStatus);
@@ -89,7 +96,8 @@ export default function OrderSummary() {
   }, []);
 
   const formatDate = (dateString) => {
-    if (!dateString || dateString === "0000-00-00 00:00:00") return "Non disponible";
+    if (!dateString || dateString === "0000-00-00 00:00:00")
+      return "Non disponible";
     return new Date(dateString).toLocaleDateString("fr-FR", {
       day: "2-digit",
       month: "2-digit",
@@ -129,7 +137,6 @@ export default function OrderSummary() {
   if (orders.length === 0) {
     return (
       <div className="order-summary-empty">
-        <div className="empty-icon">📦</div>
         <h2>Aucune commande trouvée</h2>
         <p>Vous n&apos;avez pas encore passé de commande</p>
         <Link to="/products" className="btn-continue-shopping">
@@ -142,15 +149,17 @@ export default function OrderSummary() {
   return (
     <div className="order-summary">
       <h1>Mes Commandes</h1>
-      
+
       <div className="orders-list">
         {orders.map((order) => {
           const orderId = order?.id?.["#cdata"];
           const totalPaid = order?.total_paid?.["#cdata"];
           const dateAdd = order?.date_add?.["#cdata"];
           const payment = order?.payment?.["#cdata"];
-          const orderRows = order?.associations?.order_rows?.order_row || [];
-          
+          let orderRows = order?.associations?.order_rows?.order_row || [];
+          if (orderRows && !Array.isArray(orderRows)) {
+            orderRows = [orderRows];
+          }
           return (
             <div key={orderId} className="order-card">
               <div className="order-header">
@@ -158,43 +167,57 @@ export default function OrderSummary() {
                   <span className="order-number">Commande #{orderId}</span>
                   <span className="order-date">{formatDate(dateAdd)}</span>
                 </div>
-                <div 
+                <div
                   className="order-status"
-                  style={getStatusBadgeStyle(order.statusName, order.statusColor)}
+                  style={getStatusBadgeStyle(
+                    order.statusName,
+                    order.statusColor,
+                  )}
                 >
                   {order.statusName}
                 </div>
               </div>
-              
+
               <div className="order-products">
                 {orderRows.map((row, idx) => (
                   <div key={idx} className="order-product-item">
                     <div className="product-details">
-                      <span className="product-name">{row.product_name?.["#cdata"]}</span>
-                      <span className="product-quantity">x{row.product_quantity?.["#cdata"]}</span>
+                      <span className="product-name">
+                        {row.product_name?.["#cdata"]}
+                      </span>
+                      <span className="product-quantity">
+                        x{row.product_quantity?.["#cdata"]}
+                      </span>
                     </div>
                     <div className="product-price">
-                      {parseFloat(row.unit_price_tax_incl?.["#cdata"] || 0).toFixed(2)} €
+                      {parseFloat(
+                        row.unit_price_tax_incl?.["#cdata"] || 0,
+                      ).toFixed(2)}{" "}
+                      €
                     </div>
                   </div>
                 ))}
               </div>
-              
+
               <div className="order-footer">
                 <div className="order-payment">
                   <span className="payment-label">Paiement :</span>
-                  <span className="payment-method">{payment || "Non spécifié"}</span>
+                  <span className="payment-method">
+                    {payment || "Non spécifié"}
+                  </span>
                 </div>
                 <div className="order-total">
                   <span className="total-label">Total :</span>
-                  <span className="total-amount">{parseFloat(totalPaid || 0).toFixed(2)} €</span>
+                  <span className="total-amount">
+                    {parseFloat(totalPaid || 0).toFixed(2)} €
+                  </span>
                 </div>
               </div>
             </div>
           );
         })}
       </div>
-      
+
       <div className="order-actions">
         <Link to="/products" className="btn-continue">
           ← Continuer mes achats

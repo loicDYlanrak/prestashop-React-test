@@ -434,9 +434,9 @@ export default function AdminOrdersDashboard() {
 
   // Calculer le total HT
   const getTotalHT = (order) => {
-    const totalTTC = parseFloat(order.total_paid_tax_incl?.["#cdata"] || 0);
+    // console.log("Calculating total HT for order:", order);
     const totalTax = parseFloat(order.total_paid_tax_excl?.["#cdata"] || 0);
-    return formatPrice(totalTTC - totalTax);
+    return formatPrice( totalTax);
   };
 
   // Calculer le total TTC
@@ -448,9 +448,8 @@ export default function AdminOrdersDashboard() {
   const getFilteredTotalHT = () => {
     let total = 0;
     filteredOrders.forEach((order) => {
-      const totalTTC = parseFloat(order.total_paid_tax_incl?.["#cdata"] || 0);
       const totalTax = parseFloat(order.total_paid_tax_excl?.["#cdata"] || 0);
-      total += totalTTC - totalTax;
+      total += totalTax;
     });
     return formatPrice(total);
   };
@@ -582,7 +581,6 @@ export default function AdminOrdersDashboard() {
         </div>
       </div>
 
-      {/* Résumé par jour */}
       {/* Résumé par jour */}
       <div className="daily-summary">
         <h2>Résumé par jour</h2>

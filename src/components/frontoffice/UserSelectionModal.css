@@ -348,3 +348,39 @@
     transform: translateY(0);
   }
 }
+
+/* À ajouter dans UserSelectionModal.css */
+.user-selection-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 25px;
+  border-top: 1px solid #e0e0e0;
+  gap: 15px;
+}
+
+.footer-left {
+  flex: 1;
+}
+
+.footer-right {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-register {
+  background: none;
+  border: none;
+  color: #10b981;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.btn-register:hover {
+  background: #f0fdf4;
+  color: #059669;
+}

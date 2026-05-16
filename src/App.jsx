@@ -30,6 +30,7 @@ import CartPage from "./pages/frontoffice/CartPage";
 import { ListProduct } from "./components/ListProduct";
 import OrderSummary from "./pages/frontoffice/OrderSummary";
 import AdminOrdersDashboard from "./pages/AdminOrdersDashboard";
+import OrderSummaryPage from "./pages/frontoffice/OrderSummaryPage";
 
 function ErrorFallback({ error, resetErrorBoundary }) {
   return (
@@ -51,8 +52,9 @@ function App() {
           <BrowserRouter>
             <Routes>
               <Route path="/list-products" element={<ListProduct />} />
-              <Route path="/select-user" element={<UserSelectionPage />} />
               <Route path="/" element={<FrontLayout />}>
+                <Route path="/order-summary" element={<OrderSummaryPage />} />
+                <Route path="/select-user" element={<UserSelectionPage />} />
                 <Route index element={<Navigate to="/select-user" replace />} />
                 <Route path="/orders" element={<OrderSummary />} />
                 <Route path="/cart" element={<CartPage />} />
@@ -73,7 +75,10 @@ function App() {
                   index
                   element={<Navigate to="/admin/dashboard" replace />}
                 />
-                <Route path="orders-dashboard" element={<AdminOrdersDashboard />} />
+                <Route
+                  path="orders-dashboard"
+                  element={<AdminOrdersDashboard />}
+                />
                 <Route path="reset-data" element={<ResetData />} />
                 <Route path="import-data" element={<ImportData />} />
                 <Route path="orders" element={<Orders />} />

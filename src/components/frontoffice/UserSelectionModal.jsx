@@ -1,13 +1,13 @@
 /* eslint-disable react/prop-types */
-import { useState, useEffect } from 'react';
-import { fetchPrestashop } from '../../hooks/useFetchPrestashop';
-import './UserSelectionModal.css';
+import { useState, useEffect } from "react";
+import { fetchPrestashop } from "../../hooks/useFetchPrestashop";
+import "./UserSelectionModal.css";
 
 export default function UserSelectionModal({ isOpen, onClose, onUserSelect }) {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     if (isOpen) {
@@ -20,16 +20,18 @@ export default function UserSelectionModal({ isOpen, onClose, onUserSelect }) {
     try {
       const response = await fetchPrestashop("customers");
       // console.log("customers: ", response);
-      
+
       if (response.success && response.data?.customers?.customer) {
         const customersList = response.data.customers.customer;
-        
+
         const customersWithDetails = await Promise.all(
           customersList.map(async (customerRef) => {
             const customerId = customerRef["@_id"];
-            const customerDetails = await fetchPrestashop(`customers/${customerId}`);
+            const customerDetails = await fetchPrestashop(
+              `customers/${customerId}`,
+            );
             console.log(`customer ${customerId}: `, customerDetails);
-            
+
             if (customerDetails.success && customerDetails.data?.customer) {
               const cust = customerDetails.data.customer;
               return {
@@ -38,17 +40,17 @@ export default function UserSelectionModal({ isOpen, onClose, onUserSelect }) {
                 lastname: cust.lastname?.["#cdata"] || "",
                 email: cust.email?.["#cdata"] || "",
                 isGuest: cust.is_guest?.["#cdata"] === "1",
-                active: cust.active?.["#cdata"] === "1"
+                active: cust.active?.["#cdata"] === "1",
               };
             }
             return null;
-          })
+          }),
         );
-        
+
         const validCustomers = customersWithDetails
-          .filter(c => c !== null)
+          .filter((c) => c !== null)
           .sort((a, b) => a.firstname.localeCompare(b.firstname));
-        
+
         setCustomers(validCustomers);
       }
     } catch (error) {
@@ -64,7 +66,7 @@ export default function UserSelectionModal({ isOpen, onClose, onUserSelect }) {
 
   const handleConfirm = () => {
     if (selectedUserId) {
-      const selectedUser = customers.find(c => c.id === selectedUserId);
+      const selectedUser = customers.find((c) => c.id === selectedUserId);
       if (selectedUser) {
         onUserSelect(selectedUser);
         onClose();
@@ -80,32 +82,38 @@ export default function UserSelectionModal({ isOpen, onClose, onUserSelect }) {
       email: "",
       isGuest: true,
       active: true,
-      isAnonymous: true
+      isAnonymous: true,
     };
     onUserSelect(anonymousUser);
     onClose();
   };
 
-  const filteredCustomers = customers.filter(customer => 
-    customer.firstname.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.lastname.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredCustomers = customers.filter(
+    (customer) =>
+      customer.firstname.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.lastname.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.email.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   if (!isOpen) return null;
 
   return (
     <div className="user-selection-overlay" onClick={onClose}>
-      <div className="user-selection-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="user-selection-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="user-selection-header">
           <h2>Choisir un utilisateur</h2>
-          <button className="close-button" onClick={onClose}>×</button>
+          <button className="close-button" onClick={onClose}>
+            ×
+          </button>
         </div>
 
         <div className="user-selection-content">
           {/* Option anonyme */}
-          <div 
-            className={`user-card anonymous ${selectedUserId === 0 ? 'selected' : ''}`}
+          <div
+            className={`user-card anonymous ${selectedUserId === 0 ? "selected" : ""}`}
             onClick={() => handleAnonymousSelect()}
           >
             <div className="user-avatar anonymous-avatar">👤</div>
@@ -148,11 +156,11 @@ export default function UserSelectionModal({ isOpen, onClose, onUserSelect }) {
                 filteredCustomers.map((customer) => (
                   <div
                     key={customer.id}
-                    className={`user-card ${selectedUserId === customer.id ? 'selected' : ''}`}
+                    className={`user-card ${selectedUserId === customer.id ? "selected" : ""}`}
                     onClick={() => handleUserSelect(customer)}
                   >
                     <div className="user-avatar">
-                      {customer.firstname?.charAt(0) || 'U'}
+                      {customer.firstname?.charAt(0) || "U"}
                     </div>
                     <div className="user-info">
                       <div className="user-name">
@@ -160,11 +168,13 @@ export default function UserSelectionModal({ isOpen, onClose, onUserSelect }) {
                       </div>
                       <div className="user-email">{customer.email}</div>
                       <div className="user-badge">
-                        {customer.isGuest ? 'Invité' : 'Client'}
-                        {!customer.active && ' (Inactif)'}
+                        {customer.isGuest ? "Invité" : "Client"}
+                        {!customer.active && " (Inactif)"}
                       </div>
                     </div>
-                    {selectedUserId === customer.id && <div className="check-mark">✓</div>}
+                    {selectedUserId === customer.id && (
+                      <div className="check-mark">✓</div>
+                    )}
                   </div>
                 ))
               )}
@@ -173,16 +183,26 @@ export default function UserSelectionModal({ isOpen, onClose, onUserSelect }) {
         </div>
 
         <div className="user-selection-footer">
-          <button className="btn-cancel" onClick={onClose}>
-            Annuler
-          </button>
-          <button 
-            className="btn-confirm" 
-            onClick={handleConfirm}
-            disabled={!selectedUserId}
-          >
-            Confirmer
-          </button>
+          <div className="footer-left">
+            <button
+              className="btn-register"
+              onClick={() => console.log("Inscription à ajouter")}
+            >
+              Créer un nouveau compte
+            </button>
+          </div>
+          <div className="footer-right">
+            <button className="btn-cancel" onClick={onClose}>
+              Annuler
+            </button>
+            <button
+              className="btn-confirm"
+              onClick={handleConfirm}
+              disabled={!selectedUserId}
+            >
+              Confirmer
+            </button>
+          </div>
         </div>
       </div>
     </div>

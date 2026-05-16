@@ -77,17 +77,17 @@ export default function UserSelectionPage() {
   };
 
   const handleAnonymousSelect = () => {
-    const anonymousUser = {
-      id: 0,
-      firstname: "Invité",
-      lastname: "",
-      email: "",
-      isGuest: true,
-      active: true,
-      isAnonymous: true
-    };
-    localStorage.setItem('user', JSON.stringify(anonymousUser));
-    navigate('/');
+    // const anonymousUser = {
+    //   id: 0,
+    //   firstname: "Invité",
+    //   lastname: "",
+    //   email: "",
+    //   isGuest: true,
+    //   active: true,
+    //   isAnonymous: true
+    // };
+    // localStorage.setItem('user', JSON.stringify(anonymousUser));
+    navigate('/products');
   };
 
   const filteredCustomers = customers.filter(customer => 
