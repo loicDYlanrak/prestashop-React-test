@@ -350,23 +350,37 @@ export default function AdminOrdersDashboard() {
 
   // Calculer les statistiques
   const calculateStats = () => {
-    // Statistiques pour la période filtrée
+    const isCancelled = (order) => {
+      const statusId = order.current_state?.["#cdata"];
+      return statusId === "6";
+    };
+
+    // Statistiques pour la période filtrée (exclure annulées)
     let dailyCount = 0;
     let dailyAmount = 0;
 
     filteredOrders.forEach((order) => {
-      dailyCount++;
-      const totalPaid = parseFloat(order.total_paid_tax_incl?.["#cdata"] || 0);
-      dailyAmount += totalPaid;
+      if (!isCancelled(order)) {
+        dailyCount++;
+        const totalPaid = parseFloat(
+          order.total_paid_tax_incl?.["#cdata"] || 0,
+        );
+        dailyAmount += totalPaid;
+      }
     });
 
-    // Statistiques totales
-    let totalCount = allOrders.length;
+    // Statistiques totales (exclure annulées)
+    let totalCount = 0;
     let totalAmount = 0;
 
     allOrders.forEach((order) => {
-      const totalPaid = parseFloat(order.total_paid_tax_incl?.["#cdata"] || 0);
-      totalAmount += totalPaid;
+      if (!isCancelled(order)) {
+        totalCount++;
+        const totalPaid = parseFloat(
+          order.total_paid_tax_incl?.["#cdata"] || 0,
+        );
+        totalAmount += totalPaid;
+      }
     });
 
     setStats({
@@ -377,11 +391,15 @@ export default function AdminOrdersDashboard() {
     });
   };
 
-  // Grouper les commandes par jour
+  // Grouper les commandes par jour (exclure annulées)
   const getOrdersByDay = () => {
     const grouped = {};
 
     filteredOrders.forEach((order) => {
+      const statusId = order.current_state?.["#cdata"];
+      // Exclure les commandes annulées des statistiques journalières
+      if (statusId === "6") return;
+
       const date = order.date_add?.["#cdata"]?.split(" ")[0];
       if (!date) return;
 
@@ -436,7 +454,7 @@ export default function AdminOrdersDashboard() {
   const getTotalHT = (order) => {
     // console.log("Calculating total HT for order:", order);
     const totalTax = parseFloat(order.total_paid_tax_excl?.["#cdata"] || 0);
-    return formatPrice( totalTax);
+    return formatPrice(totalTax);
   };
 
   // Calculer le total TTC
@@ -444,21 +462,27 @@ export default function AdminOrdersDashboard() {
     return formatPrice(order.total_paid_tax_incl?.["#cdata"]);
   };
 
-  // Calculer le total HT des commandes filtrées
+  // Calculer le total HT des commandes filtrées (exclure annulées)
   const getFilteredTotalHT = () => {
     let total = 0;
     filteredOrders.forEach((order) => {
-      const totalTax = parseFloat(order.total_paid_tax_excl?.["#cdata"] || 0);
-      total += totalTax;
+      const statusId = order.current_state?.["#cdata"];
+      if (statusId !== "6") {
+        const totalTax = parseFloat(order.total_paid_tax_excl?.["#cdata"] || 0);
+        total += totalTax;
+      }
     });
     return formatPrice(total);
   };
 
-  // Calculer le total TTC des commandes filtrées
+  // Calculer le total TTC des commandes filtrées (exclure annulées)
   const getFilteredTotalTTC = () => {
     let total = 0;
     filteredOrders.forEach((order) => {
-      total += parseFloat(order.total_paid_tax_incl?.["#cdata"] || 0);
+      const statusId = order.current_state?.["#cdata"];
+      if (statusId !== "6") {
+        total += parseFloat(order.total_paid_tax_incl?.["#cdata"] || 0);
+      }
     });
     return formatPrice(total);
   };

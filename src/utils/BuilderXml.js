@@ -111,7 +111,7 @@ function cleanXmlTags(xml) {
     'id_product_attribute', 'id_customization' ,'id_cart' ,'module' ,'valid',
     'payment', 'total_paid', 'total_paid_real','total_products', 'total_products_wt',
     'round_mode', 'round_type', 'conversion_rate', 'product_id', 'product_attribute_id',
-    'product_quantity'
+    'product_quantity', 'current_state'
   ];
 
   simpleTags.forEach(tag => {

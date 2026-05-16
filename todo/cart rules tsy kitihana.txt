@@ -162,7 +162,6 @@ arranger dans etat de mes commandes lorsque il n y a qu une seule commande
 arranger le total ht des produits 
 faire update de la date add de panier et de orders pendant l import
 faire aussi test avec des donnes des badge hot et new dans le front office 
-
 si un utilisateur qui n est pas connecter essaye de faire une commande 
 il faut redigirer vers un login
 ajouter une page de resumer d un commande avant de valider 

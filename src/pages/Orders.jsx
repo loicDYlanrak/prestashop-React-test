@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import './Orders.css'
 import { useFetchAllOrders } from "../hooks/useFetchPrestashop.js";
+import {
+  updateResource,
+} from "../hooks/useMutationPrestashop";
 
 const STATUS_STYLES = {
   'Paiement accepté':                 { bg: '#27ae60', color: '#fff' },
@@ -100,22 +103,17 @@ export default function Orders() {
     try {
       const newStatusId = STATE_NAME_TO_ID[newStatus]
       const orderId = selectedOrder.id
+
+      const response = await updateResource(
+              "order",
+              orderId,
+              {
+                id: orderId,
+                current_state: newStatusId 
+              },
+            );
       
-      const updatedOrderData = {
-        ...selectedOrder.rawData,
-        current_state: { '#cdata': newStatusId }
-      }
-      
-      const response = await fetch(`http://localhost/prestashop2/api/orders/${orderId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/xml',
-          'Authorization': 'Basic ' + btoa('2LA1668U53GC9T35AIT5Y3P7E8CKG7LL:') // Remplacez par votre clé API
-        },
-        body: formatOrderToXML(updatedOrderData)
-      })
-      
-      if (response.ok) {
+      if (response) {
 
         setOrders(orders.map(order => 
           order.id === selectedOrder.id 
@@ -134,18 +132,6 @@ export default function Orders() {
       setShowStatusModal(false)
       setSelectedOrder(null)
     }
-  }
-
-  // Formater les données en XML pour l'API PrestaShop
-  const formatOrderToXML = (orderData) => {
-    // Simplifié - à adapter selon le format attendu par votre API
-    return `<?xml version="1.0" encoding="UTF-8"?>
-      <prestashop>
-        <order>
-          <id><![CDATA[${orderData.id}]]></id>
-          <current_state><![CDATA[${orderData.current_state['#cdata']}]]></current_state>
-        </order>
-      </prestashop>`
   }
 
   const addOrder = () => {
