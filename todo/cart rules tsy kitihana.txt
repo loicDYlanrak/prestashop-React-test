@@ -141,7 +141,10 @@ verification import:
 
 dashboard 
 ajouter 
-rajouter une page qui permet d’ajouter en stock les produits
+rajouter une page qui permet d’ajouter en stock les produits: 
+
+api : http://localhost/prestashop2/module/stockapi/updateStock?id_product=33&id_attribute=41&delta=1
+
     si produit a des declinaison on modifie le stock de ces declinaison
 
 deux input type date 
@@ -153,3 +156,26 @@ Par jour
     dernier status de chaque commande 
 tableau sur l’évolution du stock journalier d’un produit
     un produit a eu ce stock ce jour 
+
+arranger dans etat de mes commandes lorsque il n y a qu une seule commande
+arranger le total ht des produits 
+faire update de la date add de panier et de orders pendant l import
+faire aussi test avec des donnes des badge hot et new dans le front office 
+gere le pagination des produits dans la liste de produits 
+
+si un utilisateur qui n est pas connecter essaye de faire une commande 
+il faut redigirer vers un login
+
+ajouter une page de resumer d un commande avant de valider 
+ajouter update de status de commande a annule dans la liste de commande backoffice
+verifier dans la liste de commande dans le dashboard que si commande annule on ne compte pas le chiffre d affaire
+
+tester les erreurs durant les imports :
+    i. Nom de colonne non conforme
+    ii. format de date différente de DD/MM/YYYY
+    iii. montant positif
+tester evolution du stock d un produit avec et sans declinaison
+
+faire un todo list des taches 
+
+charger le panier d un utilisateur(si possible)

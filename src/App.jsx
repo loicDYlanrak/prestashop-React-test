@@ -29,6 +29,7 @@ import UserSelectionPage from "./pages/frontoffice/UserSelectionPage";
 import CartPage from "./pages/frontoffice/CartPage";
 import { ListProduct } from "./components/ListProduct";
 import OrderSummary from "./pages/frontoffice/OrderSummary";
+import AdminOrdersDashboard from "./pages/AdminOrdersDashboard";
 
 function ErrorFallback({ error, resetErrorBoundary }) {
   return (
@@ -72,15 +73,16 @@ function App() {
                   index
                   element={<Navigate to="/admin/dashboard" replace />}
                 />
+                <Route path="orders-dashboard" element={<AdminOrdersDashboard />} />
                 <Route path="reset-data" element={<ResetData />} />
                 <Route path="import-data" element={<ImportData />} />
+                <Route path="orders" element={<Orders />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="categories" element={<Categories />} />
                 <Route path="products" element={<Products />} />
                 <Route path="customers" element={<Customers />} />
                 <Route path="import" element={<Import />} />
                 <Route path="export" element={<Export />} />
-                <Route path="orders" element={<Orders />} />
                 <Route path="stock" element={<Stock />} />
                 <Route path="addCategorie" element={<AddCategorie />} />
                 <Route path="deleteCategorie" element={<DeleteCategorie />} />
