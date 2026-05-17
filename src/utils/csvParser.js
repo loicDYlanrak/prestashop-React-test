@@ -330,7 +330,7 @@ export const parseFile3Customers = (csvText) => {
     
     carts.push(cartData);
     
-    if (etat && etat !== "") {
+    if (etat && etat !== "" && etat !== "dans le panier") {
       orders.push({
         client_nom: nom,
         client_email: email,
