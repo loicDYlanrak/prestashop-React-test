@@ -167,7 +167,6 @@ il faut redigirer vers un login
 ajouter une page de resumer d un commande avant de valider 
 ajouter update de status de commande a annule dans la liste de commande backoffice
 verifier dans la liste de commande dans le dashboard que si commande annule on ne compte pas le chiffre d affaire
-
 tester les erreurs durant les imports :
     i. Nom de colonne non conforme
     ii. format de date différente de DD/MM/YYYY

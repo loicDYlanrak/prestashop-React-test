@@ -22,6 +22,7 @@ export default function AdminOrdersDashboard() {
   const [productsList, setProductsList] = useState([]);
   const [stockHistory, setStockHistory] = useState([]);
   const [loadingStockHistory, setLoadingStockHistory] = useState(false);
+  const [productCombinations, setProductCombinations] = useState({});
 
   // Statistiques
   const [stats, setStats] = useState({
@@ -40,6 +41,21 @@ export default function AdminOrdersDashboard() {
         urlRest: "display=full",
       });
 
+      const combinationsResponse = await fetchPrestashop("combinations", {
+        urlRest: "display=full&limit=1000",
+      });
+
+      // Récupérer toutes les options et valeurs d'options
+      const productOptionsResponse = await fetchPrestashop("product_options", {
+        urlRest: "display=full&limit=1000",
+      });
+      const productOptionValuesResponse = await fetchPrestashop(
+        "product_option_values",
+        {
+          urlRest: "display=full&limit=1000",
+        },
+      );
+
       if (
         stocksResponse.success &&
         stocksResponse.data?.stock_availables?.stock_available
@@ -48,7 +64,110 @@ export default function AdminOrdersDashboard() {
         const stocksArray = Array.isArray(stocks) ? stocks : [stocks];
 
         const productsMap = new Map();
-        const stockToProductMap = new Map(); // NOUVEAU: mapping id_stock -> produit
+        const stockToProductMap = new Map();
+
+        // Créer un mapping des options (groupes d'attributs)
+        const optionsMap = new Map();
+        if (
+          productOptionsResponse.success &&
+          productOptionsResponse.data?.product_options?.product_option
+        ) {
+          let options =
+            productOptionsResponse.data.product_options.product_option;
+          const optionsArray = Array.isArray(options) ? options : [options];
+
+          optionsArray.forEach((option) => {
+            const optionId = option.id?.["#cdata"];
+            const optionName =
+              option.name?.language?.["#cdata"] || "Option inconnue";
+            optionsMap.set(optionId, { id: optionId, name: optionName });
+          });
+        }
+
+        // Créer un mapping des valeurs d'options
+        const optionValuesMap = new Map();
+        if (
+          productOptionValuesResponse.success &&
+          productOptionValuesResponse.data?.product_option_values
+            ?.product_option_value
+        ) {
+          let optionValues =
+            productOptionValuesResponse.data.product_option_values
+              .product_option_value;
+          const optionValuesArray = Array.isArray(optionValues)
+            ? optionValues
+            : [optionValues];
+
+          optionValuesArray.forEach((optionValue) => {
+            const valueId = optionValue.id?.["#cdata"];
+            const valueName =
+              optionValue.name?.language?.["#cdata"] || "Valeur inconnue";
+            const groupId = optionValue.id_attribute_group?.["#cdata"];
+            optionValuesMap.set(valueId, {
+              id: valueId,
+              name: valueName,
+              groupId: groupId,
+              groupName: optionsMap.get(groupId)?.name || "Groupe inconnu",
+            });
+          });
+        }
+
+        // Créer un mapping des combinaisons avec les noms complets
+        const combinationsMap = new Map();
+        if (
+          combinationsResponse.success &&
+          combinationsResponse.data?.combinations?.combination
+        ) {
+          let combinations = combinationsResponse.data.combinations.combination;
+          const combinationsArray = Array.isArray(combinations)
+            ? combinations
+            : [combinations];
+
+          combinationsArray.forEach((combination) => {
+            const combinationId = combination.id?.["#cdata"];
+            const productId = combination.id_product?.["#cdata"];
+
+            // Récupérer les IDs des valeurs d'options
+            let optionValueIds = [];
+            const productOptionValues =
+              combination.associations?.product_option_values
+                ?.product_option_value;
+
+            if (productOptionValues) {
+              if (Array.isArray(productOptionValues)) {
+                optionValueIds = productOptionValues
+                  .map((value) => value?.id?.["#cdata"])
+                  .filter(Boolean);
+              } else {
+                optionValueIds = [productOptionValues?.id?.["#cdata"]].filter(
+                  Boolean,
+                );
+              }
+            }
+
+            // Construire le nom de la combinaison à partir des valeurs d'options
+            let combinationName = "";
+            if (optionValueIds.length > 0) {
+              const names = optionValueIds
+                .map((valueId) => {
+                  const optionValue = optionValuesMap.get(valueId);
+                  return optionValue
+                    ? `${optionValue.groupName}: ${optionValue.name}`
+                    : null;
+                })
+                .filter(Boolean);
+              combinationName = names.join(" / ");
+            }
+
+            combinationsMap.set(combinationId, {
+              productId,
+              name: combinationName || `Combinaison #${combinationId}`,
+              optionValueIds: optionValueIds,
+            });
+          });
+        }
+
+        setProductCombinations(Object.fromEntries(combinationsMap));
 
         stocksArray.forEach((stock) => {
           const productId = stock.id_product?.["#cdata"];
@@ -66,7 +185,6 @@ export default function AdminOrdersDashboard() {
             });
           }
 
-          // NOUVEAU: Ajouter au mapping stockId -> produit
           if (stockId) {
             stockToProductMap.set(stockId, {
               productId,
@@ -79,8 +197,6 @@ export default function AdminOrdersDashboard() {
 
         setProductsList(Array.from(productsMap.values()));
         setStockData(stocksArray);
-
-        // NOUVEAU: Stocker le mapping
         window.stockToProductMap = stockToProductMap;
       }
 
@@ -391,7 +507,6 @@ export default function AdminOrdersDashboard() {
     });
   };
 
-  // Grouper les commandes par jour (exclure annulées)
   const getOrdersByDay = () => {
     const grouped = {};
 
@@ -727,8 +842,9 @@ export default function AdminOrdersDashboard() {
               <option value="">-- Choisir un produit --</option>
               {productsList.map((product) => {
                 let productName = `Produit #${product.productId}`;
+                let displayName = productName;
 
-                // Chercher le nom dans les commandes
+                // Chercher le nom du produit dans les commandes existantes
                 const orderWithProduct = allOrders.find((order) => {
                   const associations = order.associations;
                   if (associations?.order_rows?.order_row) {
@@ -750,25 +866,32 @@ export default function AdminOrdersDashboard() {
                   )
                     ? orderWithProduct.associations.order_rows.order_row
                     : [orderWithProduct.associations.order_rows.order_row];
+
                   const foundRow = rows.find(
                     (row) => row.product_id?.["#cdata"] === product.productId,
                   );
                   if (foundRow?.product_name?.["#cdata"]) {
                     productName = foundRow.product_name["#cdata"];
+                    displayName = productName;
                   }
                 }
 
                 const isCombination = product.attributeId !== "0";
+                if (isCombination && productCombinations[product.attributeId]) {
+                  const combination = productCombinations[product.attributeId];
+                  if (combination.name && combination.name !== "") {
+                    displayName = `${productName} (${combination.name})`;
+                  } else if (combination.name) {
+                    displayName = `${productName} - ${combination.name}`;
+                  }
+                }
+
                 return (
                   <option
                     key={`${product.productId}_${product.attributeId}`}
                     value={`${product.productId}_${product.attributeId}`}
                   >
-                    {productName}{" "}
-                    {isCombination
-                      ? `(Déclinaison #${product.attributeId})`
-                      : "(Produit simple)"}{" "}
-                    - Stock: {product.quantity}
+                    {displayName} - Stock: {product.quantity}
                   </option>
                 );
               })}
