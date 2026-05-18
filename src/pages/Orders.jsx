@@ -16,13 +16,13 @@ const ALL_STATUSES = Object.keys(STATUS_STYLES);
 
 const STATE_ID_TO_NAME = {
   11: "Paiement effectué",
-  4: "livré",
+  5: "livré",
   6: "Annulé",
 };
 
 const STATE_NAME_TO_ID = {
   "Paiement effectué": "11",
-  livré: "4",
+  livré: "5",
   Annulé: "6",
 };
 

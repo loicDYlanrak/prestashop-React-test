@@ -24,6 +24,7 @@ const RESOURCE_ENDPOINTS = {
   order: "orders",
   image: "images/products",
   stockAvailable: "stock_availables",
+  stockMovement: "stock_movements",
 };
 
 const MULTILANG_FIELDS = {
