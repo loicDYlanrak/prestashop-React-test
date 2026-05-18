@@ -31,6 +31,7 @@ import { ListProduct } from "./components/ListProduct";
 import OrderSummary from "./pages/frontoffice/OrderSummary";
 import AdminOrdersDashboard from "./pages/AdminOrdersDashboard";
 import OrderSummaryPage from "./pages/frontoffice/OrderSummaryPage";
+import AdminStatsDashboard from './pages/AdminStatsDashboard'
 
 function ErrorFallback({ error, resetErrorBoundary }) {
   return (
@@ -79,6 +80,7 @@ function App() {
                   path="orders-dashboard"
                   element={<AdminOrdersDashboard />}
                 />
+                <Route path="stat-vente" element={<AdminStatsDashboard />} />
                 <Route path="reset-data" element={<ResetData />} />
                 <Route path="import-data" element={<ImportData />} />
                 <Route path="orders" element={<Orders />} />

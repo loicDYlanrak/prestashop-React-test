@@ -24,6 +24,7 @@ export default function AdminOrdersDashboard() {
   const [stockHistory, setStockHistory] = useState([]);
   const [loadingStockHistory, setLoadingStockHistory] = useState(false);
   const [productCombinations, setProductCombinations] = useState({});
+  const [customersMap, setCustomersMap] = useState(new Map());
 
   // Statistiques
   const [stats, setStats] = useState({
@@ -374,7 +375,7 @@ export default function AdminOrdersDashboard() {
     }
   };
 
-  // Récupérer toutes les commandes une seule fois
+  // Remplacer la section des customers dans fetchAllOrders (vers la ligne ~170)
   const fetchAllOrders = async () => {
     setLoading(true);
     setError(null);
@@ -398,7 +399,6 @@ export default function AdminOrdersDashboard() {
 
       const ordersArray = Array.isArray(ordersData) ? ordersData : [ordersData];
 
-      // Récupérer les détails de chaque commande avec les lignes
       const ordersWithDetails = await Promise.all(
         ordersArray.map(async (order) => {
           const orderId = order["@_id"];
@@ -419,7 +419,51 @@ export default function AdminOrdersDashboard() {
         }),
       );
 
-      // Trier les commandes par date côté client
+      // Récupérer tous les customers
+      const customersResponse = await fetchPrestashop("customers", {
+        urlRest: "display=full",
+      });
+
+      const customersMap = new Map();
+      if (
+        customersResponse.success &&
+        customersResponse.data?.customers?.customer
+      ) {
+        let customers = customersResponse.data.customers.customer;
+        const customersArray = Array.isArray(customers)
+          ? customers
+          : [customers];
+
+        await Promise.all(
+          customersArray.map(async (customerRef) => {
+            
+            const customerId = customerRef?.id?.["#cdata"];
+            
+            if (customerId) {
+              try {
+                const customerDetail = await fetchPrestashop(
+                  `customers/${customerId}`,
+                  {
+                    urlRest: "display=full",
+                  },
+                );
+                
+                console.log(`Customer ${customerId} detail:`, customerDetail.data)
+                if (customerDetail.success && customerDetail.data?.customer) {
+                  const customer = customerDetail.data.customer;
+                  const firstname = customer.firstname?.["#cdata"] || "";
+                  const lastname = customer.lastname?.["#cdata"] || "";
+                  customersMap.set(customerId, { firstname, lastname });
+                }
+              } catch (err) {
+                console.error(`Error fetching customer ${customerId}:`, err);
+              }
+            }
+          }),
+        );
+      }
+      setCustomersMap(customersMap);
+
       const sortedOrders = ordersWithDetails.sort((a, b) => {
         const dateA = new Date(a.date_add?.["#cdata"] || 0);
         const dateB = new Date(b.date_add?.["#cdata"] || 0);
@@ -427,7 +471,7 @@ export default function AdminOrdersDashboard() {
       });
 
       setAllOrders(sortedOrders);
-      setFilteredOrders(sortedOrders); // Au début, on affiche tout
+      setFilteredOrders(sortedOrders);
     } catch (err) {
       console.error("Failed to load orders", err);
       setError(err.message || "Erreur lors du chargement des commandes");
@@ -513,7 +557,6 @@ export default function AdminOrdersDashboard() {
 
     filteredOrders.forEach((order) => {
       const statusId = order.current_state?.["#cdata"];
-      // Exclure les commandes annulées des statistiques journalières
       if (statusId === "6") return;
 
       const date = order.date_add?.["#cdata"]?.split(" ")[0];
@@ -787,9 +830,10 @@ export default function AdminOrdersDashboard() {
                 filteredOrders.map((order) => {
                   const orderId = order.id?.["#cdata"];
                   const statusId = order.current_state?.["#cdata"];
-                  const customerName = order.id_customer?.["@_fetched"]
-                    ?.customer
-                    ? `${order.id_customer["@_fetched"].customer.firstname?.["#cdata"] || ""} ${order.id_customer["@_fetched"].customer.lastname?.["#cdata"] || ""}`
+                  const customerId = order.id_customer?.["#cdata"];
+                  const customer = customersMap.get(customerId);
+                  const customerName = customer
+                    ? `${customer.firstname} `
                     : "Client inconnu";
 
                   return (

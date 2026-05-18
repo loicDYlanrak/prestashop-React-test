@@ -180,3 +180,22 @@ charger le panier d un utilisateur(si possible)
 
 rehefa mapiditra stock ana produit ve dia tokony alaina en compte ilay data nampidirana azy 
 satria mety raisina en compte hoe t amin ity ilay produit zao no stock
+
+créer manuellement l’endpoint pour gérer manuellement le changement d’état
+arranger le test pour chagner le status d une commande a livre ou a annule
+ajouter dans l import la gestion de status annulé et livré 
+
+dans le backoffice dans la gestion de commande faire bouton annulé et bouton livré en fonction de current status
+
+creer une nouvel page pour avoir statistique suivant : 
+    montant total des ventes , 
+    montant total des achats 
+    benefice par categorie de produit
+
+creer le tableau suivant : 
+ categorie      |qte physique | qte reserve | qte disponible
+ ex:habillement | 0           | 0           | 0
+
+charger le dernier panier de l utilisateur qui n est pas encore transformer en commande
+arranger les fonctions dans la page ajouter stock pour utiliser post stock_mvts
+stocker le panier de l utilisateur non connecter dans session 

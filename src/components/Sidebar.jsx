@@ -11,6 +11,7 @@ const menuItems = [
     section: "VENDRE",
     items: [
       { label: "Tableau de bord", path: "/admin/orders-dashboard" },
+      { label: "Statistiques de vente", path: "/admin/stat-vente" },
       { label: "Reinitialiser", path: "/admin/reset-data" },
       { label: "Importer Fichier", path: "/admin/import-data" },
       { label: "Commandes", path: "/admin/orders" },
