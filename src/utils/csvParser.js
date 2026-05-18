@@ -27,6 +27,10 @@ const parseCSVGeneric = (csvText) => {
     }
     row.push(currentValue.trim());
 
+    if (row.length !== headers.length) {
+      throw new Error(`Ligne ${i + 1} - Nombre de colonnes invalide: attendu ${headers.length}, reçu ${row.length}`);
+    }
+
     if (row.length !== headers.length && row.length > 0) {
       continue;
     }
