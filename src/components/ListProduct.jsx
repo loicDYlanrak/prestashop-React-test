@@ -11,8 +11,20 @@ export function ListProduct() {
   const { loading, data, errors } = useFetchAllProduits("products");
   // const { loading, data, errors } = useFetchAllCategories('categories');
 
+
+
   useEffect(() => {
     const fetchData = async () => {
+      const id_order = 76 // par exmple
+      const responseStockMouvements = await fetchPrestashop("stock_movements", { urlRest:`filter[id_order]=[${id_order}]`});
+      console.log("Stock movements response:", responseStockMouvements);
+      const idsStockMouvements = responseStockMouvements.data?.stock_mvts?.map(
+        (mvt) => mvt.id?.["#cdata"]
+      );
+      console.log("IDs des mouvements de stock:", idsStockMouvements);
+      // const mouvementstockId = responseStockMouvements.data?.stock_mvt.id?.["#cdata"];
+      // console.log("Movement stock ID:", mouvementstockId);
+      
       //console.log("Données reçues dans useEffect :", data);
       const productID = data?.[0]?.product.id?.["#cdata"];
       if (data && productID) {
@@ -217,7 +229,8 @@ export function ListProduct() {
             };
           });
         });
-        console.log("Stocks with combinations and options:", stocksOptions);
+        // console.log("Stocks with combinations and options:", stocksOptions);
+
       }
     };
     fetchData();
@@ -229,7 +242,7 @@ export function ListProduct() {
 
       {data && (
         <ul>
-          {console.log("Données finaleeeeees :", data)}
+          {console.log("Donnéesfinaleeeeees :", data)}
           {/* {console.log("data :", data.categories.category[0]['@_href'].replace("http://localhost/prestashop2/api/", ""))} */}
           {/* <p>Données reçues ({parsedData.products.product.length} categories)</p> */}
 

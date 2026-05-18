@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable no-unused-vars */
 import { useState, useEffect } from "react";
 import { fetchPrestashop } from "../hooks/useFetchPrestashop.js";
 import { deleteResource } from "../hooks/useDeletePrestashop.js";
@@ -84,7 +86,7 @@ export default function ResetData() {
       name: "customers",
       endpoint: "customers",
       deleteEndpoint: "customers",
-      excludeIds: [1, 2, 3]
+      excludeIds: [1, 2, 3],
     },
     {
       name: "products",
@@ -141,9 +143,9 @@ export default function ResetData() {
   const fetchAllIdsToDelete = async () => {
     setLoading(true);
     setVerificationComplete(false);
-    const results = {};
 
-    for (const entity of entitiesToReset) {
+    // Créer un tableau de promesses pour TOUS les fetchs
+    const fetchPromises = entitiesToReset.map(async (entity) => {
       try {
         const urlRest = `display=[id]`;
         const result = await fetchPrestashop(entity.endpoint, { urlRest });
@@ -212,37 +214,49 @@ export default function ResetData() {
             ids = ids.filter((id) => !entity.excludeIds.includes(parseInt(id)));
           }
 
-          results[entity.name] = {
-            ids: ids,
-            total: ids.length,
-            endpoint: entity.endpoint,
-            deleteEndpoint: entity.deleteEndpoint,
+          return {
+            [entity.name]: {
+              ids: ids,
+              total: ids.length,
+              endpoint: entity.endpoint,
+              deleteEndpoint: entity.deleteEndpoint,
+            },
           };
         } else {
-          results[entity.name] = {
-            ids: [],
-            total: 0,
-            endpoint: entity.endpoint,
-            deleteEndpoint: entity.deleteEndpoint,
-            error: result.error || "Erreur de récupération",
+          return {
+            [entity.name]: {
+              ids: [],
+              total: 0,
+              endpoint: entity.endpoint,
+              deleteEndpoint: entity.deleteEndpoint,
+              error: result.error || "Erreur de récupération",
+            },
           };
         }
       } catch (error) {
         console.error(`Erreur pour ${entity.name}:`, error);
-        results[entity.name] = {
-          ids: [],
-          total: 0,
-          endpoint: entity.endpoint,
-          error: error.message,
+        return {
+          [entity.name]: {
+            ids: [],
+            total: 0,
+            endpoint: entity.endpoint,
+            error: error.message,
+          },
         };
       }
-    }
+    });
+
+    const resultsArray = await Promise.all(fetchPromises);
+
+    const results = {};
+    resultsArray.forEach((result) => {
+      Object.assign(results, result);
+    });
 
     setDataToDelete(results);
     setLoading(false);
     setVerificationComplete(true);
   };
-
   useEffect(() => {
     fetchAllIdsToDelete();
   }, []);
@@ -279,7 +293,7 @@ export default function ResetData() {
     }
   };
 
-  // Réinitialiser complètement les données
+  // Suppression par lots avec contrôle de concurrence
   const resetAllData = async () => {
     if (!checkDataToDelete()) {
       alert("Aucune donnée à supprimer. La base est déjà propre !");
@@ -304,32 +318,41 @@ export default function ResetData() {
 
     setIsProcessing(true);
 
-    let totalDeleted = 0;
-    let totalErrors = 0;
+    const CONCURRENCY_LIMIT = 20; // Nombre de suppressions simultanées
+
+    const deletePromises = [];
 
     for (const entity of entitiesToReset) {
       const entityData = dataToDelete[entity.name];
       if (!entityData || entityData.total === 0) continue;
 
       for (const id of entityData.ids) {
-        const result = await deleteEntityItem(entity.deleteEndpoint, id);
-
-        if (result.success) {
-          totalDeleted++;
-        } else {
-          totalErrors++;
-        }
-
-        // Petite pause pour éviter de surcharger l'API
-        await new Promise((resolve) => setTimeout(resolve, 150));
+        deletePromises.push(() => deleteEntityItem(entity.deleteEndpoint, id));
       }
     }
+
+    // Exécuter avec limitation de concurrence
+    const results = [];
+    for (let i = 0; i < deletePromises.length; i += CONCURRENCY_LIMIT) {
+      const batch = deletePromises.slice(i, i + CONCURRENCY_LIMIT);
+      const batchResults = await Promise.all(batch.map((promise) => promise()));
+      results.push(...batchResults);
+
+      // Mettre à jour la progression
+      const progress = Math.min(
+        ((i + CONCURRENCY_LIMIT) / deletePromises.length) * 100,
+        100,
+      );
+      console.log(`Progression: ${progress.toFixed(1)}%`);
+    }
+
+    let totalDeleted = results.filter((r) => r.success).length;
+    let totalErrors = results.filter((r) => !r.success).length;
 
     alert(
       `🎉 RÉINITIALISATION TERMINÉE !\n\nRésultat final: ${totalDeleted} supprimés, ${totalErrors} erreurs`,
     );
 
-    // Recharger les données après suppression
     if (
       window.confirm(
         "Réinitialisation terminée ! Voulez-vous recharger la page pour voir les changements ?",
