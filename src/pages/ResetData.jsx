@@ -65,6 +65,11 @@ export default function ResetData() {
       endpoint: "specific_prices",
       deleteEndpoint: "specific_prices",
     },
+    {
+      name: "stock_movements",
+      endpoint: "stock_movements",
+      deleteEndpoint: "stock_movements",
+    },
     // {
     //   name: "stock_availables",
     //   endpoint: "stock_availables",

@@ -1,9 +1,16 @@
+/* eslint-disable no-unused-vars */
 import { fetchPrestashop } from "../hooks/useFetchPrestashop";
 import {
   addResource,
   updateResource,
   uploadProductImage,
 } from "../hooks/useMutationPrestashop";
+
+const STATE_NAME_TO_ID = {
+  livré: "5",
+  annulé: "6",
+  "paiement accepté": "11",
+};
 
 const entityCache = {
   categories: new Map(), // nom_categorie -> id
@@ -24,6 +31,110 @@ const entityCache = {
 const getCombinationKey = (productRef, attributeName, attributeValue) => {
   return `${productRef}|${attributeName}|${attributeValue}`;
 };
+
+/**
+ * Appliquer l'annulation d'une commande
+ */
+async function cancelOrder(orderId, orderRef, options = {}) {
+  try {
+    await updateResource(
+      "order",
+      orderId,
+      {
+        id: orderId,
+        current_state: STATE_NAME_TO_ID["annulé"],
+      },
+      options,
+    );
+
+    return { success: true, message: `Commande ${orderRef} annulée` };
+  } catch (error) {
+    console.error(`Erreur annulation commande ${orderId}:`, error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Appliquer la livraison d'une commande via l'API changeState
+ */
+async function deliverOrder(orderId, orderRef, options = {}) {
+  try {
+    const API_CHANGE_STATE_URL =
+      "http://localhost/prestashop2/module/orderapi/changeState";
+    const response = await fetch(
+      `${API_CHANGE_STATE_URL}?id_order=${orderId}&id_state=5`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      },
+    );
+    const result = await response.json();
+
+    if (result.success) {
+      return {
+        success: true,
+        message: result.message || `Commande ${orderRef} marquée comme livrée`,
+        id_order: result.id_order,
+        new_state: result.new_state,
+      };
+    } else {
+      throw new Error(result.message || "Erreur lors de la livraison");
+    }
+  } catch (error) {
+    console.error(`Erreur livraison commande ${orderId}:`, error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Appliquer les changements d'état après l'import des commandes
+ */
+export async function applyOrderStateChanges(options = {}) {
+  const results = {
+    cancelled: [],
+    delivered: [],
+    errors: [],
+  };
+
+  for (const [orderKey, orderInfo] of entityCache.orders.entries()) {
+    const orderId = orderInfo.id?.["#cdata"] || orderInfo.id;
+    const etatOriginal = orderInfo.etat_original?.toLowerCase();
+
+    if (!orderId || !etatOriginal) continue;
+
+    // Si l'état est "annulé"
+    if (etatOriginal === "annulé") {
+      const result = await cancelOrder(orderId, orderId, options);
+      if (result.success) {
+        results.cancelled.push({ orderId, ref: orderId });
+      } else {
+        results.errors.push({
+          orderId,
+          error: result.error,
+          action: "annulation",
+        });
+      }
+    }
+    // Si l'état est "livré"
+    else if (etatOriginal === "livré") {
+      const result = await deliverOrder(orderId, orderId, options);
+      if (result.success) {
+        results.delivered.push({ orderId, ref: orderId });
+      } else {
+        results.errors.push({
+          orderId,
+          error: result.error,
+          action: "livraison",
+        });
+      }
+    }
+  }
+
+  return results;
+}
 
 // ==================== FILE 1 : PRODUITS ====================
 
@@ -970,10 +1081,17 @@ export async function importCarts(cartsData, options = {}) {
       const cartId = response?.cart?.id;
 
       if (cartId) {
-        entityCache.carts.set(cartId, {
+        const originalDate = cart.date;
+        const [day, month, year] = originalDate.split("/");
+        const formattedDate = `${year}-${month}-${day} 12:00:57`;
+
+        const cartCacheKey = `${cartId?.["#cdata"]}|${formattedDate}`;
+
+        entityCache.carts.set(cartCacheKey, {
           id: cartId,
           customer_email: cart.client_email,
           cart_content: JSON.stringify(cart.panier),
+          cart_date: formattedDate,
           cart_items: cart.panier.map((item) => ({
             product_reference: item.product_reference,
             attribute_name: item.attribute_name,
@@ -981,9 +1099,6 @@ export async function importCarts(cartsData, options = {}) {
           })),
         });
 
-        const originalDate = cart.date;
-        const [day, month, year] = originalDate.split("/");
-        const formattedDate = `${year}-${month}-${day} 12:00:57`;
         const cartPatch = {
           id: cartId?.["#cdata"],
           date_add: formattedDate,
@@ -992,10 +1107,18 @@ export async function importCarts(cartsData, options = {}) {
         try {
           await updateResource("cart", cartId?.["#cdata"], cartPatch, options);
         } catch (error) {
-          console.error(`Erreur mise à jour cart ${cartId?.["#cdata"]}:`, error);
+          console.error(
+            `Erreur mise à jour cart ${cartId?.["#cdata"]}:`,
+            error,
+          );
         }
 
-        results.push({ email: cart.client_email, cartId, success: true });
+        results.push({
+          email: cart.client_email,
+          cartId,
+          date: formattedDate,
+          success: true,
+        });
       } else {
         results.push({
           email: cart.client_email,
@@ -1038,11 +1161,11 @@ const getProductPriceTTC = (productInfo, combinationAttributeId, quantity) => {
  */
 export async function importOrders(ordersData, options = {}) {
   const results = [];
-  // console.log("ordersData:", ordersData);
+
   for (let i = 0; i < ordersData.length; i++) {
     const order = ordersData[i];
     const customerId = entityCache.customers.get(order.client_email);
-    // console.log("customerId:", customerId);
+
     if (!customerId?.["#cdata"]) {
       results.push({
         email: order.client_email,
@@ -1054,7 +1177,7 @@ export async function importOrders(ordersData, options = {}) {
 
     const alias = `Adresse_${order.client_nom?.replace(/\s/g, "_") || customerId}`;
     const addressId = entityCache.addresses.get(alias);
-    // console.log("addressId:", addressId);
+
     if (!addressId?.["#cdata"]) {
       results.push({
         email: order.client_email,
@@ -1066,8 +1189,19 @@ export async function importOrders(ordersData, options = {}) {
 
     let cartId = null;
 
-    for (const [storedCartId, cartInfo] of entityCache.carts.entries()) {
+    // Formater la date de la commande pour comparaison
+    const orderDate = order.date;
+    const [orderDay, orderMonth, orderYear] = orderDate.split("/");
+    const formattedOrderDate = `${orderYear}-${orderMonth}-${orderDay} 12:00:57`;
+
+    // Rechercher un panier correspondant au client ET à la date
+    for (const [storedCartKey, cartInfo] of entityCache.carts.entries()) {
       if (cartInfo.customer_email === order.client_email) {
+        // Vérifier si la date du panier correspond à celle de la commande
+        if (cartInfo.cart_date !== formattedOrderDate) {
+          continue; // Date différente, passer au panier suivant
+        }
+
         const orderItems = order.panier;
         const cartItems = cartInfo.cart_items;
 
@@ -1092,14 +1226,13 @@ export async function importOrders(ordersData, options = {}) {
           }
 
           if (isMatching) {
-            cartId = storedCartId;
+            cartId = cartInfo.id;
             break;
           }
         }
       }
     }
 
-    // console.log("cartId:", cartId);
     if (!cartId?.["#cdata"]) {
       results.push({
         email: order.client_email,
@@ -1113,9 +1246,9 @@ export async function importOrders(ordersData, options = {}) {
       const orderRows = [];
       let totalProducts = 0;
       let totalPaidTTC = 0;
+
       for (const item of order.panier) {
         const productInfo = entityCache.products.get(item.product_reference);
-        // console.log("productInfo:", productInfo);
 
         if (!productInfo) continue;
 
@@ -1138,8 +1271,8 @@ export async function importOrders(ordersData, options = {}) {
               break;
             }
           }
-          // console.log("Match trouvé - attributeId:", attributeId);
         }
+
         const attributeIdValue = attributeId?.["#cdata"] || attributeId;
         const itemPriceTTC = getProductPriceTTC(
           productInfo,
@@ -1164,7 +1297,7 @@ export async function importOrders(ordersData, options = {}) {
         });
         continue;
       }
-      // console.log("totalPaidTTC:", totalPaidTTC)
+
       const orderData = {
         id_address_delivery: addressId?.["#cdata"],
         id_address_invoice: addressId?.["#cdata"],
@@ -1193,29 +1326,49 @@ export async function importOrders(ordersData, options = {}) {
           order_rows: { order_row: orderRows },
         },
       };
-      //   console.log("orderData:", orderData);
 
       const response = await addResource("order", orderData, options);
       const orderId = response?.order?.id;
 
       if (orderId) {
-        entityCache.orders.set(orderId, orderId);
-        results.push({ email: order.client_email, orderId, success: true });
-
-        const originalDate = order.date;
-        const [day, month, year] = originalDate.split("/");
+        const [day, month, year] = order.date.split("/");
         const formattedDate = `${year}-${month}-${day} 12:00:57`;
+
+        entityCache.orders.set(orderId, {
+          id: orderId,
+          ref: orderId?.["#cdata"],
+          email: order.client_email,
+          etat_original: order.etat,
+          order_date: formattedDate,
+        });
+
         const cartPatch = {
           id: orderId?.["#cdata"],
           date_add: formattedDate,
           date_upd: formattedDate,
         };
-        // console.log("orderId:", orderId);
+
         try {
-          await updateResource("order", orderId?.["#cdata"], cartPatch, options);
+          await updateResource(
+            "order",
+            orderId?.["#cdata"],
+            cartPatch,
+            options,
+          );
         } catch (error) {
-          console.error(`Erreur mise à jour order ${orderId?.["#cdata"]}:`, error);
+          console.error(
+            `Erreur mise à jour order ${orderId?.["#cdata"]}:`,
+            error,
+          );
         }
+
+        results.push({
+          email: order.client_email,
+          orderId,
+          etat_original: order.etat,
+          date: formattedDate,
+          success: true,
+        });
       } else {
         results.push({
           email: order.client_email,
@@ -1369,6 +1522,10 @@ export async function runFullImport(
       parsedData.file3.orders,
       apiOptions,
     );
+
+    if (onProgress) onProgress("Application des changements d'état...", 97);
+    results.file3.state_changes_result =
+      await applyOrderStateChanges(apiOptions);
 
     if (onStepComplete) onStepComplete("file3", results.file3);
 

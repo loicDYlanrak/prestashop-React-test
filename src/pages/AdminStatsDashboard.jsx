@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 // AdminStatsDashboard.jsx
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useEffect } from "react";
@@ -7,27 +8,29 @@ import "./AdminStatsDashboard.css";
 export default function AdminStatsDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   // Données principales
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [stockData, setStockData] = useState([]);
-  
+  // Ajoutez cet état avec les autres useState
+
   // Statistiques calculées
   const [stats, setStats] = useState({
-    totalSales: 0,      // CA total (ventes)
-    totalPurchases: 0,  // Coût total d'achat
-    totalProfit: 0,     // Bénéfice total
-    profitMargin: 0,    // Marge brute (%)
+    totalSales: 0, // CA total (ventes)
+    totalPurchases: 0, // Coût total d'achat
+    totalProfit: 0, // Bénéfice total
+    profitMargin: 0, // Marge brute (%)
   });
-  
+
   // Bénéfices par catégorie
   const [profitByCategory, setProfitByCategory] = useState([]);
-  
+
   // Stock par catégorie
   const [stockByCategory, setStockByCategory] = useState([]);
 
+  // Récupération des statuts de commandes
   // Récupération des statuts de commandes
   const fetchOrderStatuses = async () => {
     try {
@@ -67,14 +70,15 @@ export default function AdminStatsDashboard() {
       if (response.success && response.data?.categories?.category) {
         let cats = response.data.categories.category;
         const catsArray = Array.isArray(cats) ? cats : [cats];
-        
+
         const categoriesMap = catsArray.map((cat) => ({
           id: cat.id?.["#cdata"] || cat.id,
-          name: cat.name?.language?.["#cdata"] || cat.name?.language || "Sans nom",
+          name:
+            cat.name?.language?.["#cdata"] || cat.name?.language || "Sans nom",
           level: cat.level_depth?.["#cdata"] || cat.level_depth || 1,
           idParent: cat.id_parent?.["#cdata"] || cat.id_parent,
         }));
-        
+
         // Filtrer pour garder uniquement les catégories principales (niveau 1 ou 2)
         setCategories(categoriesMap);
       }
@@ -92,7 +96,7 @@ export default function AdminStatsDashboard() {
       if (response.success && response.data?.products?.product) {
         let prods = response.data.products.product;
         const prodsArray = Array.isArray(prods) ? prods : [prods];
-        
+
         const productsWithDetails = prodsArray.map((product) => ({
           id: product.id?.["#cdata"] || product.id,
           name: product.name?.language?.["#cdata"] || "Produit sans nom",
@@ -101,7 +105,7 @@ export default function AdminStatsDashboard() {
           categoryId: getCategoryIdFromProduct(product),
           reference: product.reference?.["#cdata"] || "",
         }));
-        
+
         setProducts(productsWithDetails);
       }
     } catch (error) {
@@ -139,7 +143,7 @@ export default function AdminStatsDashboard() {
       }
 
       let ordersArray = Array.isArray(ordersData) ? ordersData : [ordersData];
-      
+
       // Récupérer les détails complets de chaque commande
       const ordersWithDetails = await Promise.all(
         ordersArray.map(async (order) => {
@@ -157,7 +161,7 @@ export default function AdminStatsDashboard() {
             console.error(`Error fetching order ${orderId}:`, err);
           }
           return order;
-        })
+        }),
       );
 
       setOrders(ordersWithDetails);
@@ -173,7 +177,10 @@ export default function AdminStatsDashboard() {
       const response = await fetchPrestashop("stock_availables", {
         urlRest: "display=full",
       });
-      if (response.success && response.data?.stock_availables?.stock_available) {
+      if (
+        response.success &&
+        response.data?.stock_availables?.stock_available
+      ) {
         let stocks = response.data.stock_availables.stock_available;
         const stocksArray = Array.isArray(stocks) ? stocks : [stocks];
         setStockData(stocksArray);
@@ -191,20 +198,115 @@ export default function AdminStatsDashboard() {
       productCategoryMap.set(product.id, product.categoryId);
     });
 
+    // Calculer les quantités réservées à partir des commandes avec statut 11
+    const reservedQuantities = new Map(); // productId -> quantité réservée
+
+    orders.forEach((order) => {
+      const statusId = order.current_state?.["#cdata"] || order.current_state;
+
+      // Ne prendre que les commandes avec statut "Paiement accepté" (id 11)
+      if (statusId === "11") {
+        const orderRows = order.associations?.order_rows?.order_row;
+        if (!orderRows) return;
+
+        const rowsArray = Array.isArray(orderRows) ? orderRows : [orderRows];
+
+        rowsArray.forEach((row) => {
+          const productId = row.product_id?.["#cdata"] || row.product_id;
+          const productAttributeId =
+            row.product_attribute_id?.["#cdata"] || row.product_attribute_id;
+          const quantity = parseInt(
+            row.product_quantity?.["#cdata"] || row.product_quantity || 0,
+          );
+
+          if (productId) {
+            // Normaliser la clé : si pas d'attribut ou attribut "0", utiliser seulement productId
+            let key;
+            if (
+              productAttributeId &&
+              productAttributeId !== "0" &&
+              productAttributeId !== 0
+            ) {
+              key = `${productId}_${productAttributeId}`;
+            } else {
+              key = productId;
+            }
+
+            const currentReserved = reservedQuantities.get(key) || 0;
+            reservedQuantities.set(key, currentReserved + quantity);
+          }
+        });
+      }
+    });
+
+    // console.log("Reserved Quantities Map:", reservedQuantities);
+
+    // Regrouper les stocks par produit et combinaison
+    const stocksByProductAndCombination = new Map(); // key -> stock object
+
+    stockData.forEach((stock) => {
+      const productId = stock.id_product?.["#cdata"] || stock.id_product;
+      const productAttributeId =
+        stock.id_product_attribute?.["#cdata"] || stock.id_product_attribute;
+      const availableQuantity = parseInt(
+        stock.quantity?.["#cdata"] || stock.quantity || 0,
+      );
+
+      // Normaliser la clé de la même façon que pour les réservations
+      let key;
+      if (
+        productAttributeId &&
+        productAttributeId !== "0" &&
+        productAttributeId !== 0
+      ) {
+        key = `${productId}_${productAttributeId}`;
+      } else {
+        key = productId;
+      }
+
+      if (!stocksByProductAndCombination.has(productId)) {
+        stocksByProductAndCombination.set(productId, []);
+      }
+
+      stocksByProductAndCombination.get(productId).push({
+        key,
+        productId,
+        productAttributeId,
+        availableQuantity,
+        originalStock: stock,
+      });
+    });
+
+    // Filtrer les stocks pour ne garder que les bons (dernier pour simple, tous sauf premier pour combinaisons)
+    const filteredStocks = [];
+
+    for (const [
+      productId,
+      stockList,
+    ] of stocksByProductAndCombination.entries()) {
+      if (stockList.length === 1) {
+        // Produit sans combinaison : prendre le seul stock
+        filteredStocks.push(stockList[0]);
+      } else {
+        // Produit avec combinaisons : prendre tous sauf le premier (stock parent)
+        for (let i = 1; i < stockList.length; i++) {
+          filteredStocks.push(stockList[i]);
+        }
+      }
+    }
+
     // Initialiser le stock par catégorie
     const stockMap = new Map();
-    
-    // Parcourir les stocks
-    stockData.forEach((stock) => {
-      const productId = stock.id_product?.["#cdata"];
-      const quantity = parseInt(stock.quantity?.["#cdata"] || 0);
-      const outOfStock = stock.out_of_stock?.["#cdata"] === "1"; // 1 = autoriser commande hors stock
-      
-      // Quantity réservée = si out_of_stock est true, on considère que tout est "réservable"
-      // Sinon, la quantité réservée = 0 (ou on peut calculer via order_details)
-      const reservedQuantity = outOfStock ? quantity : 0;
-      const availableQuantity = outOfStock ? 0 : quantity;
-      
+
+    filteredStocks.forEach((stock) => {
+      const productId = stock.productId;
+      const key = stock.key;
+      const availableQuantity = stock.availableQuantity;
+      const reservedQuantity = reservedQuantities.get(key) || 0;
+      const physicalQuantity = availableQuantity + reservedQuantity;
+
+      // console.log(`Reserved quantity for key ${key}: ${reservedQuantity}`);
+
       const categoryId = productCategoryMap.get(productId);
       if (categoryId) {
         if (!stockMap.has(categoryId)) {
@@ -216,14 +318,14 @@ export default function AdminStatsDashboard() {
             availableQuantity: 0,
           });
         }
-        
+
         const catData = stockMap.get(categoryId);
-        catData.physicalQuantity += quantity;
+        catData.physicalQuantity += physicalQuantity;
         catData.reservedQuantity += reservedQuantity;
         catData.availableQuantity += availableQuantity;
       }
     });
-    
+
     // Ajouter les noms des catégories
     const stockArray = Array.from(stockMap.values()).map((item) => {
       const category = categories.find((c) => c.id == item.categoryId);
@@ -232,7 +334,7 @@ export default function AdminStatsDashboard() {
         categoryName: category?.name || `Catégorie #${item.categoryId}`,
       };
     });
-    
+
     setStockByCategory(stockArray);
   };
 
@@ -246,33 +348,36 @@ export default function AdminStatsDashboard() {
         wholesalePrice: product.wholesalePrice,
       });
     });
-    
+
     // Initialiser les totaux par catégorie
     const categoryTotals = new Map();
-    
+
     orders.forEach((order) => {
       const statusId = order.current_state?.["#cdata"];
       // Ne prendre que les commandes valides (non annulées)
       if (statusId === "6") return; // Annulée
-      
+
       const orderRows = order.associations?.order_rows?.order_row;
       if (!orderRows) return;
-      
+
       const rowsArray = Array.isArray(orderRows) ? orderRows : [orderRows];
-      
+
       rowsArray.forEach((row) => {
         // console.log("row:", row)
         const productId = row.product_id?.["#cdata"];
         const quantity = parseInt(row.product_quantity?.["#cdata"] || 0);
-        const unitPriceTaxIncl = parseFloat(row.unit_price_tax_incl?.["#cdata"] || 0);
-        
+        const unitPriceTaxIncl = parseFloat(
+          row.unit_price_tax_excl?.["#cdata"] || 0,
+        );
+        // console.log("unitPriceTaxIncl:", unitPriceTaxIncl);
         const productInfo = productInfoMap.get(productId);
         // console.log(`Product ID ${productId} info:`, productInfo)
         if (productInfo && productInfo.categoryId) {
           const wholesalePrice = productInfo.wholesalePrice;
           const costForThisSale = wholesalePrice * quantity;
-          const profitForThisSale = (unitPriceTaxIncl * quantity) - costForThisSale;
-          
+          const profitForThisSale =
+            unitPriceTaxIncl * quantity - costForThisSale;
+
           if (!categoryTotals.has(productInfo.categoryId)) {
             categoryTotals.set(productInfo.categoryId, {
               categoryId: productInfo.categoryId,
@@ -283,7 +388,7 @@ export default function AdminStatsDashboard() {
               quantitySold: 0,
             });
           }
-          
+
           const catData = categoryTotals.get(productInfo.categoryId);
           catData.totalSales += unitPriceTaxIncl * quantity;
           catData.totalPurchases += costForThisSale;
@@ -292,23 +397,33 @@ export default function AdminStatsDashboard() {
         }
       });
     });
-    
+
     const profitArray = Array.from(categoryTotals.values()).map((item) => {
       const category = categories.find((c) => c.id == item.categoryId);
       return {
         ...item,
         categoryName: category?.name || `Catégorie #${item.categoryId}`,
-        marginRate: item.totalSales > 0 ? (item.totalProfit / item.totalSales) * 100 : 0,
+        marginRate:
+          item.totalSales > 0 ? (item.totalProfit / item.totalSales) * 100 : 0,
       };
     });
-    
+
     profitArray.sort((a, b) => b.totalProfit - a.totalProfit);
     setProfitByCategory(profitArray);
-    
-    const totalSales = profitArray.reduce((sum, cat) => sum + cat.totalSales, 0);
-    const totalPurchases = profitArray.reduce((sum, cat) => sum + cat.totalPurchases, 0);
-    const totalProfit = profitArray.reduce((sum, cat) => sum + cat.totalProfit, 0);
-    
+
+    const totalSales = profitArray.reduce(
+      (sum, cat) => sum + cat.totalSales,
+      0,
+    );
+    const totalPurchases = profitArray.reduce(
+      (sum, cat) => sum + cat.totalPurchases,
+      0,
+    );
+    const totalProfit = profitArray.reduce(
+      (sum, cat) => sum + cat.totalProfit,
+      0,
+    );
+
     setStats({
       totalSales,
       totalPurchases,
@@ -336,10 +451,10 @@ export default function AdminStatsDashboard() {
         setLoading(false);
       }
     };
-    
+
     loadAllData();
   }, []);
-  
+
   // Recalculer les stats quand les données sont chargées
   useEffect(() => {
     if (products.length > 0 && orders.length > 0 && categories.length > 0) {
@@ -350,9 +465,9 @@ export default function AdminStatsDashboard() {
     }
   }, [products, orders, categories, stockData]);
 
-  // Formater les prix
   const formatPrice = (price) => {
-    return `${price.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    const truncated = Math.floor(price * 100) / 100;
+    return `${truncated.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
   };
 
   if (loading) {
@@ -391,14 +506,16 @@ export default function AdminStatsDashboard() {
             <span className="stat-value">{formatPrice(stats.totalSales)}</span>
           </div>
         </div>
-        
+
         <div className="stat-overview-card purchases">
           <div className="stat-content">
             <span className="stat-label">Montant Total d&apos;achat</span>
-            <span className="stat-value">{formatPrice(stats.totalPurchases)}</span>
+            <span className="stat-value">
+              {formatPrice(stats.totalPurchases)}
+            </span>
           </div>
         </div>
-        
+
         <div className="stat-overview-card profit">
           <div className="stat-content">
             <span className="stat-label">Bénéfice total</span>
@@ -433,8 +550,12 @@ export default function AdminStatsDashboard() {
                   <tr key={cat.categoryId}>
                     <td className="category-name">{cat.categoryName}</td>
                     <td className="quantity-cell">{cat.quantitySold}</td>
-                    <td className="sales-cell">{formatPrice(cat.totalSales)}</td>
-                    <td className="purchases-cell">{formatPrice(cat.totalPurchases)}</td>
+                    <td className="sales-cell">
+                      {formatPrice(cat.totalSales)}
+                    </td>
+                    <td className="purchases-cell">
+                      {formatPrice(cat.totalPurchases)}
+                    </td>
                     <td className="profit-cell profit-value">
                       {formatPrice(cat.totalProfit)}
                     </td>
@@ -444,11 +565,24 @@ export default function AdminStatsDashboard() {
             </tbody>
             <tfoot>
               <tr className="total-row">
-                <td><strong>TOTAL</strong></td>
-                <td>{profitByCategory.reduce((sum, cat) => sum + cat.quantitySold, 0)}</td>
-                <td><strong>{formatPrice(stats.totalSales)}</strong></td>
-                <td><strong>{formatPrice(stats.totalPurchases)}</strong></td>
-                <td><strong>{formatPrice(stats.totalProfit)}</strong></td>
+                <td>
+                  <strong>TOTAL</strong>
+                </td>
+                <td>
+                  {profitByCategory.reduce(
+                    (sum, cat) => sum + cat.quantitySold,
+                    0,
+                  )}
+                </td>
+                <td>
+                  <strong>{formatPrice(stats.totalSales)}</strong>
+                </td>
+                <td>
+                  <strong>{formatPrice(stats.totalPurchases)}</strong>
+                </td>
+                <td>
+                  <strong>{formatPrice(stats.totalProfit)}</strong>
+                </td>
               </tr>
             </tfoot>
           </table>
@@ -489,7 +623,6 @@ export default function AdminStatsDashboard() {
           </table>
         </div>
       </div>
-
     </div>
   );
 }

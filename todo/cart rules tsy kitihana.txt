@@ -196,6 +196,13 @@ creer le tableau suivant :
  categorie      |qte physique | qte reserve | qte disponible
  ex:habillement | 0           | 0           | 0
 
+arranger le dashboard de commande par jour 
+
+dans import csv
+il faut update la date de mouvement de stock pour correspondre a la date de create du panier
+
+dans tous les tableau ajouter un limiteur avec limit pour eviter le chargement trop long 
+
 charger le dernier panier de l utilisateur qui n est pas encore transformer en commande
 arranger les fonctions dans la page ajouter stock pour utiliser post stock_mvts
 stocker le panier de l utilisateur non connecter dans session 

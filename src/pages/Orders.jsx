@@ -22,6 +22,7 @@ const STATE_ID_TO_NAME = {
 
 const STATE_NAME_TO_ID = {
   "Paiement effectué": "11",
+  livré: "4",
   Annulé: "6",
 };
 
@@ -127,6 +128,13 @@ export default function Orders() {
     try {
       const response = await fetch(
         `${API_CHANGE_STATE_URL}?id_order=${order.id}&id_state=4`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+        },
       );
       const result = await response.json();
 
@@ -427,7 +435,13 @@ export default function Orders() {
                         }}
                       >
                         {o.statusId === "11" ? (
-                          <>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "8px",
+                              alignItems: "center",
+                            }}
+                          >
                             <span
                               className="status-badge"
                               style={{
@@ -459,7 +473,26 @@ export default function Orders() {
                             >
                               Livrer
                             </button>
-                          </>
+                            <button
+                              className="cancel-btn"
+                              onClick={() => {
+                                setSelectedOrder(o);
+                                setNewStatus("Annulé");
+                                setShowStatusModal(true);
+                              }}
+                              style={{
+                                background: "#e74c3c",
+                                color: "#fff",
+                                border: "none",
+                                padding: "4px 12px",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontSize: "12px",
+                              }}
+                            >
+                              Annuler
+                            </button>
+                          </div>
                         ) : (
                           <button
                             className="status-badge editable-status"

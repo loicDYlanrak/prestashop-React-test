@@ -570,3 +570,9 @@
   font-weight: 700;
   color: #2c3e50;
 }
+
+.daily-count .cancelled-count {
+  color: #dc3545;
+  font-size: 0.85em;
+  font-weight: normal;
+}

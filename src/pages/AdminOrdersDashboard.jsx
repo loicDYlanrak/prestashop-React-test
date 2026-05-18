@@ -436,9 +436,8 @@ export default function AdminOrdersDashboard() {
 
         await Promise.all(
           customersArray.map(async (customerRef) => {
-            
             const customerId = customerRef?.id?.["#cdata"];
-            
+
             if (customerId) {
               try {
                 const customerDetail = await fetchPrestashop(
@@ -447,8 +446,11 @@ export default function AdminOrdersDashboard() {
                     urlRest: "display=full",
                   },
                 );
-                
-                console.log(`Customer ${customerId} detail:`, customerDetail.data)
+
+                console.log(
+                  `Customer ${customerId} detail:`,
+                  customerDetail.data,
+                );
                 if (customerDetail.success && customerDetail.data?.customer) {
                   const customer = customerDetail.data.customer;
                   const firstname = customer.firstname?.["#cdata"] || "";
@@ -557,23 +559,31 @@ export default function AdminOrdersDashboard() {
 
     filteredOrders.forEach((order) => {
       const statusId = order.current_state?.["#cdata"];
-      if (statusId === "6") return;
+      const isCancelled = statusId === "6";
 
       const date = order.date_add?.["#cdata"]?.split(" ")[0];
       if (!date) return;
 
       if (!grouped[date]) {
         grouped[date] = {
-          count: 0,
+          totalCount: 0,
+          cancelledCount: 0,
           amount: 0,
           orders: [],
         };
       }
 
-      grouped[date].count++;
-      grouped[date].amount += parseFloat(
-        order.total_paid_tax_incl?.["#cdata"] || 0,
-      );
+      grouped[date].totalCount++;
+
+      if (isCancelled) {
+        grouped[date].cancelledCount++;
+      } else {
+        // Ajouter au CA uniquement si non annulée
+        grouped[date].amount += parseFloat(
+          order.total_paid_tax_incl?.["#cdata"] || 0,
+        );
+      }
+
       grouped[date].orders.push(order);
     });
 
@@ -689,7 +699,7 @@ export default function AdminOrdersDashboard() {
       </div>
 
       {/* Filtres par date */}
-      <div className="filters-section">
+      <div className="filters-section" style={{ display: "none" }}>
         <div className="date-filters">
           <div className="filter-group">
             <label>Date de début</label>
@@ -794,7 +804,16 @@ export default function AdminOrdersDashboard() {
                       year: "numeric",
                     })}
                   </span>
-                  <span className="daily-count">{day.count} commande(s)</span>
+                  <span className="daily-count">
+                    {day.totalCount} commande(s)
+                    {day.cancelledCount > 0 && (
+                      <span className="cancelled-count">
+                        {" "}
+                        (dont {day.cancelledCount} annulée
+                        {day.cancelledCount > 1 ? "s" : ""})
+                      </span>
+                    )}
+                  </span>
                 </div>
                 <div className="daily-amount">{formatPrice(day.amount)}</div>
               </div>
