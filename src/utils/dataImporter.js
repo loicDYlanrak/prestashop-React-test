@@ -1002,7 +1002,7 @@ export async function updateStocks(productStocks, options = {}) {
     }
   }
 
-  // Étape 1b : Récupérer les IDs des stocks EN PARALLÈLE (une requête par produit)
+  // Étape 2 : Récupérer la liste des stock_availables (juste les IDs)
   const fetchTasks = [];
 
   for (const [productRef, stocks] of stocksByProduct.entries()) {
@@ -1017,65 +1017,77 @@ export async function updateStocks(productStocks, options = {}) {
 
   const fetchResults = await parallelLimit(
     fetchTasks,
-    6, // Limite réduite pour les fetch (requêtes lourdes)
+    6,
     async (fetchTask) => {
       try {
         const urlRest = `filter[id_product]=[${fetchTask.productInfo.id}]`;
-
+        
+        // Premier appel : récupérer la liste des IDs de stock_availables
         const response = await fetchPrestashop("stock_availables", { urlRest });
-
-        if (!response.success || !response.data?.stock_availables) {
+        
+        if (!response.success || !response.data?.stock_availables?.stock_available) {
           return {
             productRef: fetchTask.productRef,
             stocks: fetchTask.stocks,
-            stockMap: new Map(),
+            stockDetails: new Map(),
             error: "Impossible de récupérer les stocks",
           };
         }
 
-        // Créer une map des stocks disponibles par clé (id_product|id_product_attribute)
-        const stockMap = new Map();
-        const stockAvailablesData = Array.isArray(
-          response.data.stock_availables.stock_available,
-        )
-          ? response.data.stock_availables.stock_available
-          : [response.data.stock_availables.stock_available];
-
-        for (const stockAvailable of stockAvailablesData) {
-          const idProduct =
-            stockAvailable["@_id_product"] ||
-            stockAvailable.id_product?.["#cdata"];
-          const idAttribute =
-            stockAvailable["@_id_product_attribute"] ||
-            stockAvailable.id_product_attribute?.["#cdata"] ||
-            "0";
-          const stockId =
-            stockAvailable["@_id"] || stockAvailable.id?.["#cdata"];
-
-          if (idProduct && stockId) {
-            const key = `${idProduct}|${idAttribute}`;
-            stockMap.set(key, stockId);
-          }
+        // Récupérer la liste des IDs
+        let stockList = response.data.stock_availables.stock_available;
+        if (!Array.isArray(stockList)) {
+          stockList = [stockList];
         }
+
+        // Deuxième étape : Pour chaque stock, récupérer les détails complets
+        const stockDetails = new Map();
+        
+        await parallelLimit(stockList, 5, async (stockItem) => {
+          try {
+            const stockId = stockItem["@_id"];
+            if (!stockId) return;
+            
+            // Fetch les détails complets du stock
+            const detailResponse = await fetchPrestashop(`stock_availables/${stockId}`);
+            
+            if (detailResponse.success && detailResponse.data?.stock_available) {
+              let stockData = detailResponse.data.stock_available;
+              
+              // Extraire les informations
+              let idProduct = stockData.id_product?.["#cdata"] || stockData.id_product;
+              let idAttribute = stockData.id_product_attribute?.["#cdata"] || stockData.id_product_attribute || "0";
+              let quantity = stockData.quantity?.["#cdata"] || stockData.quantity || 0;
+              
+              const key = `${idProduct}|${idAttribute}`;
+              stockDetails.set(key, {
+                id: stockId,
+                quantity: quantity
+              });
+            }
+          } catch (error) {
+            console.error(`Erreur récupération détail stock :`, error);
+          }
+        });
 
         return {
           productRef: fetchTask.productRef,
           stocks: fetchTask.stocks,
-          stockMap,
+          stockDetails,
           success: true,
         };
       } catch (error) {
         return {
           productRef: fetchTask.productRef,
           stocks: fetchTask.stocks,
-          stockMap: new Map(),
+          stockDetails: new Map(),
           error: error.message,
         };
       }
     },
   );
 
-  // Traiter les résultats des fetch et préparer les mises à jour
+  // Traiter les résultats et préparer les mises à jour
   for (const fetchResult of fetchResults) {
     if (!fetchResult.success) {
       for (const stockItem of fetchResult.stocks) {
@@ -1091,18 +1103,21 @@ export async function updateStocks(productStocks, options = {}) {
 
     for (const stockItem of fetchResult.stocks) {
       const { stock, combinationId, productInfo } = stockItem;
+      
+      // Construire la clé pour trouver le stock
+      let combinationIdValue = "0";
+      if (combinationId) {
+        combinationIdValue = combinationId["#cdata"] || combinationId;
+      }
+      
+      const stockKey = `${productInfo.id}|${combinationIdValue}`;
+      const stockData = fetchResult.stockDetails.get(stockKey);
 
-      const stockKey = combinationId?.["#cdata"]
-        ? `${productInfo.id}|${combinationId["#cdata"]}`
-        : `${productInfo.id}|0`;
-
-      const stockAvailableId = fetchResult.stockMap.get(stockKey);
-
-      if (stockAvailableId) {
+      if (stockData && stockData.id) {
         stocksToUpdate.push({
           productRef: fetchResult.productRef,
           stock,
-          stockAvailableId,
+          stockAvailableId: stockData.id,
           combinationId,
           productInfo,
         });
@@ -1110,14 +1125,14 @@ export async function updateStocks(productStocks, options = {}) {
         results.push({
           productRef: fetchResult.productRef,
           stock,
-          error: "Stock ID non trouvé",
+          error: `Stock ID non trouvé pour la clé: ${stockKey}`,
           success: false,
         });
       }
     }
   }
 
-  // Étape 2 : Mettre à jour les stocks en parallèle (limite 10)
+  // Mise à jour des stocks
   if (stocksToUpdate.length > 0) {
     const updateResults = await parallelLimit(
       stocksToUpdate,
@@ -1129,13 +1144,13 @@ export async function updateStocks(productStocks, options = {}) {
             stockData.stockAvailableId,
             {
               quantity: stockData.stock.stock,
-              out_of_stock: 1,
+              out_of_stock: 2,
             },
             options,
           );
 
           const stockKey = stockData.combinationId
-            ? `${stockData.productInfo.id}|${stockData.combinationId}`
+            ? `${stockData.productInfo.id}|${stockData.combinationId["#cdata"] || stockData.combinationId}`
             : `${stockData.productInfo.id}|0`;
           entityCache.stockAvailables.set(stockKey, stockData.stockAvailableId);
 

@@ -465,9 +465,12 @@ export default function AdminStatsDashboard() {
     }
   }, [products, orders, categories, stockData]);
 
+  // const formatPrice = (price) => {
+  //   const truncated = Math.floor(price * 100) / 100;
+  //   return `${truncated.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  // };
   const formatPrice = (price) => {
-    const truncated = Math.floor(price * 100) / 100;
-    return `${truncated.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    return `${price.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
   };
 
   if (loading) {
