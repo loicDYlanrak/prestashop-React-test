@@ -257,7 +257,7 @@ export default function Orders() {
         // Mettre à jour le statut dans l'état local
         setOrders(
           orders.map((o) =>
-            o.id === order.id ? { ...o, status: "livré", statusId: "4" } : o,
+            o.id === order.id ? { ...o, status: "livré", statusId: "5" } : o,
           ),
         );
         alert(result.message || `Commande ${order.ref} marquée comme livrée`);
