@@ -474,10 +474,10 @@ export default function AdminOrdersDashboard() {
                   },
                 );
 
-                console.log(
-                  `Customer ${customerId} detail:`,
-                  customerDetail.data,
-                );
+                // console.log(
+                //   `Customer ${customerId} detail:`,
+                //   customerDetail.data,
+                // );
                 if (customerDetail.success && customerDetail.data?.customer) {
                   const customer = customerDetail.data.customer;
                   const firstname = customer.firstname?.["#cdata"] || "";
