@@ -27,6 +27,8 @@ export default function AdminOrdersDashboard() {
   const [customersMap, setCustomersMap] = useState(new Map());
   const [stockSearchQuery, setStockSearchQuery] = useState("");
   const [showStockDropdown, setShowStockDropdown] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Statistiques
   const [stats, setStats] = useState({
@@ -579,6 +581,48 @@ export default function AdminOrdersDashboard() {
     });
   };
 
+  // Pagination
+  const getCurrentPageOrders = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredOrders.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = () => {
+    return Math.ceil(filteredOrders.length / itemsPerPage);
+  };
+
+  const changePage = (page) => {
+    setCurrentPage(page);
+    // Scroll en haut du tableau
+    document
+      .querySelector(".orders-table-container")
+      ?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+      document
+        .querySelector(".orders-table-container")
+        ?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < getTotalPages()) {
+      setCurrentPage(currentPage + 1);
+      document
+        .querySelector(".orders-table-container")
+        ?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  const handleItemsPerPageChange = (e) => {
+    setItemsPerPage(parseInt(e.target.value));
+    setCurrentPage(1); // Reset à la première page
+  };
+
   const getOrdersByDay = () => {
     const grouped = {};
 
@@ -848,8 +892,34 @@ export default function AdminOrdersDashboard() {
       </div>
 
       {/* Liste détaillée des commandes */}
+      {/* Liste détaillée des commandes */}
       <div className="orders-list-section">
         <h2>Liste des commandes</h2>
+
+        {/* Contrôles de pagination en haut */}
+        <div className="pagination-controls-top">
+          <div className="items-per-page">
+            <label>Afficher : </label>
+            <select value={itemsPerPage} onChange={handleItemsPerPageChange}>
+              <option value="10">10 lignes</option>
+              <option value="25">25 lignes</option>
+              <option value="50">50 lignes</option>
+              <option value="100">100 lignes</option>
+            </select>
+          </div>
+          <div className="pagination-info">
+            {filteredOrders.length > 0 ? (
+              <>
+                Affichage de {(currentPage - 1) * itemsPerPage + 1} à{" "}
+                {Math.min(currentPage * itemsPerPage, filteredOrders.length)}{" "}
+                sur {filteredOrders.length} commandes
+              </>
+            ) : (
+              <>0 commande</>
+            )}
+          </div>
+        </div>
+
         <div className="orders-table-container">
           <table className="orders-table">
             <thead>
@@ -871,13 +941,13 @@ export default function AdminOrdersDashboard() {
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map((order) => {
+                getCurrentPageOrders().map((order) => {
                   const orderId = order.id?.["#cdata"];
                   const statusId = order.current_state?.["#cdata"];
                   const customerId = order.id_customer?.["#cdata"];
                   const customer = customersMap.get(customerId);
                   const customerName = customer
-                    ? `${customer.firstname} `
+                    ? `${customer.firstname} ${customer.lastname}`
                     : "Client inconnu";
 
                   return (
@@ -907,6 +977,52 @@ export default function AdminOrdersDashboard() {
             </tbody>
           </table>
         </div>
+
+        {/* Contrôles de pagination en bas */}
+        {filteredOrders.length > 0 && (
+          <div className="pagination-controls-bottom">
+            <button
+              onClick={goToPreviousPage}
+              disabled={currentPage === 1}
+              className="pagination-btn"
+            >
+              ← Précédent
+            </button>
+
+            <div className="pagination-pages">
+              {Array.from({ length: Math.min(5, getTotalPages()) }, (_, i) => {
+                let pageNum;
+                if (getTotalPages() <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= getTotalPages() - 2) {
+                  pageNum = getTotalPages() - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => changePage(pageNum)}
+                    className={`pagination-page-btn ${currentPage === pageNum ? "active" : ""}`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={goToNextPage}
+              disabled={currentPage === getTotalPages()}
+              className="pagination-btn"
+            >
+              Suivant →
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Suivi d'évolution du stock */}

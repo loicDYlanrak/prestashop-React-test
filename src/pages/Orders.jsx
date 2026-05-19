@@ -86,6 +86,8 @@ export default function Orders() {
     total: "",
     status: "Paiement accepté",
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     if (data && Array.isArray(data) && data.length > 0) {
@@ -103,6 +105,53 @@ export default function Orders() {
         (filters.newClient === "Oui" ? o.newClient : !o.newClient)) &&
       (filters.status === "" || o.status === filters.status),
   );
+
+  // Pagination
+  const getCurrentPageOrders = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filtered.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = () => {
+    return Math.ceil(filtered.length / itemsPerPage);
+  };
+
+  const changePage = (page) => {
+    setCurrentPage(page);
+    // Scroll en haut du tableau
+    document
+      .querySelector(".panel-body")
+      ?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+      document
+        .querySelector(".panel-body")
+        ?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < getTotalPages()) {
+      setCurrentPage(currentPage + 1);
+      document
+        .querySelector(".panel-body")
+        ?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  const handleItemsPerPageChange = (e) => {
+    setItemsPerPage(parseInt(e.target.value));
+    setCurrentPage(1);
+  };
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
 
   const toggleSelect = (id) =>
     setSelected((s) =>
@@ -274,7 +323,53 @@ export default function Orders() {
 
         <div className="panel-body">
           <div className="orders-toolbar">
-            {/* <button className="btn btn-outline dropdown-btn">Actions groupées ▾</button> */}
+            {/* Controls de pagination en haut */}
+            <div
+              className="pagination-controls"
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "15px",
+                flexWrap: "wrap",
+                gap: "10px",
+              }}
+            >
+              <div
+                className="items-per-page"
+                style={{ display: "flex", alignItems: "center", gap: "10px" }}
+              >
+                <label style={{ fontSize: "13px" }}>Afficher :</label>
+                <select
+                  value={itemsPerPage}
+                  onChange={handleItemsPerPageChange}
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: "4px",
+                    border: "1px solid #ddd",
+                  }}
+                >
+                  <option value="10">10 lignes</option>
+                  <option value="25">25 lignes</option>
+                  <option value="50">50 lignes</option>
+                  <option value="100">100 lignes</option>
+                </select>
+              </div>
+              <div
+                className="pagination-info"
+                style={{ fontSize: "13px", color: "#666" }}
+              >
+                {filtered.length > 0 ? (
+                  <>
+                    Affichage de {(currentPage - 1) * itemsPerPage + 1} à{" "}
+                    {Math.min(currentPage * itemsPerPage, filtered.length)} sur{" "}
+                    {filtered.length} commandes
+                  </>
+                ) : (
+                  <>0 commande</>
+                )}
+              </div>
+            </div>
           </div>
 
           <table className="ps-table">
@@ -396,7 +491,7 @@ export default function Orders() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((o) => {
+              {getCurrentPageOrders().map((o) => {
                 const st = STATUS_STYLES[o.status] || {
                   bg: "#7f8c8d",
                   color: "#fff",
@@ -525,6 +620,94 @@ export default function Orders() {
               })}
             </tbody>
           </table>
+          {filtered.length > 0 && (
+            <div
+              className="pagination-controls-bottom"
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: "15px",
+                marginTop: "20px",
+                paddingTop: "15px",
+                borderTop: "1px solid #eee",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                onClick={goToPreviousPage}
+                disabled={currentPage === 1}
+                style={{
+                  padding: "6px 12px",
+                  backgroundColor: currentPage === 1 ? "#e0e0e0" : "#fff",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                  fontSize: "13px",
+                }}
+              >
+                ← Précédent
+              </button>
+
+              <div
+                className="pagination-pages"
+                style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}
+              >
+                {Array.from(
+                  { length: Math.min(5, getTotalPages()) },
+                  (_, i) => {
+                    let pageNum;
+                    if (getTotalPages() <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= getTotalPages() - 2) {
+                      pageNum = getTotalPages() - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => changePage(pageNum)}
+                        style={{
+                          minWidth: "32px",
+                          padding: "6px 10px",
+                          backgroundColor:
+                            currentPage === pageNum ? "#007bff" : "#fff",
+                          color: currentPage === pageNum ? "#fff" : "#333",
+                          border: "1px solid #ddd",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          fontSize: "13px",
+                        }}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+
+              <button
+                onClick={goToNextPage}
+                disabled={currentPage === getTotalPages()}
+                style={{
+                  padding: "6px 12px",
+                  backgroundColor:
+                    currentPage === getTotalPages() ? "#e0e0e0" : "#fff",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  cursor:
+                    currentPage === getTotalPages() ? "not-allowed" : "pointer",
+                  fontSize: "13px",
+                }}
+              >
+                Suivant →
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
