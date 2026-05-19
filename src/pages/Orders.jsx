@@ -242,7 +242,7 @@ export default function Orders() {
 
     try {
       const response = await fetch(
-        `${API_CHANGE_STATE_URL}?id_order=${order.id}&id_state=4`,
+        `${API_CHANGE_STATE_URL}?id_order=${order.id}&id_state=5`,
         {
           method: "POST",
           headers: {
