@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import "./Orders.css";
-import { useFetchAllOrders } from "../hooks/useFetchPrestashop.js";
+import {
+  useFetchAllOrders,
+  fetchPrestashop,
+} from "../hooks/useFetchPrestashop.js";
 import { updateResource } from "../hooks/useMutationPrestashop";
 
 const API_CHANGE_STATE_URL =
@@ -26,16 +29,17 @@ const STATE_NAME_TO_ID = {
   Annulé: "6",
 };
 
-const extractOrderData = (orderData) => {
+const extractOrderData = (orderData, customersMap) => {
   const order = orderData.order;
-  // console.log("orderData:", orderData);
 
   const currentStateId = order.current_state?.["#cdata"] || order.current_state;
-  console.log("currentStateId:", currentStateId);
   const statusName = STATE_ID_TO_NAME[currentStateId] || "Annulé";
 
-  const customerName = order.id_customer?.["@_fetched"]?.customer
-    ? `${order.id_customer["@_fetched"].customer.firstname?.["#cdata"] || ""} ${order.id_customer["@_fetched"].customer.lastname?.["#cdata"] || ""}`.trim()
+  // Utiliser customersMap pour obtenir le nom du client
+  const customerId = order.id_customer?.["#cdata"] || order.id_customer;
+  const customer = customersMap.get(customerId);
+  const customerName = customer
+    ? `${customer.firstname} ${customer.lastname}`.trim()
     : "Client inconnu";
 
   let country = "France";
@@ -47,7 +51,7 @@ const extractOrderData = (orderData) => {
   return {
     id: parseInt(order.id?.["#cdata"] || order.id),
     ref: order.reference?.["#cdata"] || order.reference,
-    newClient: false, // À déterminer si nécessaire
+    newClient: false,
     country: country,
     client: customerName,
     total: parseFloat(
@@ -57,7 +61,7 @@ const extractOrderData = (orderData) => {
     status: statusName,
     statusId: currentStateId,
     date: order.date_add?.["#cdata"] || order.date_add || "",
-    rawData: order, // Garder les données brutes pour la mise à jour
+    rawData: order,
   };
 };
 
@@ -89,12 +93,74 @@ export default function Orders() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  const [customersMap, setCustomersMap] = useState(new Map());
+  const fetchCustomers = async () => {
+    try {
+      const customersResponse = await fetchPrestashop("customers", {
+        urlRest: "display=full",
+      });
+
+      const customersMap = new Map();
+      if (
+        customersResponse.success &&
+        customersResponse.data?.customers?.customer
+      ) {
+        let customers = customersResponse.data.customers.customer;
+        const customersArray = Array.isArray(customers)
+          ? customers
+          : [customers];
+
+        await Promise.all(
+          customersArray.map(async (customerRef) => {
+            const customerId = customerRef?.id?.["#cdata"];
+
+            if (customerId) {
+              try {
+                const customerDetail = await fetchPrestashop(
+                  `customers/${customerId}`,
+                  {
+                    urlRest: "display=full",
+                  },
+                );
+
+                if (customerDetail.success && customerDetail.data?.customer) {
+                  const customer = customerDetail.data.customer;
+                  const firstname = customer.firstname?.["#cdata"] || "";
+                  const lastname = customer.lastname?.["#cdata"] || "";
+                  customersMap.set(customerId, { firstname, lastname });
+                }
+              } catch (err) {
+                console.error(`Error fetching customer ${customerId}:`, err);
+              }
+            }
+          }),
+        );
+      }
+      setCustomersMap(customersMap);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+    }
+  };
   useEffect(() => {
-    if (data && Array.isArray(data) && data.length > 0) {
-      const extractedOrders = data.map((item) => extractOrderData(item));
+    const loadData = async () => {
+      await fetchCustomers();
+    };
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (
+      data &&
+      Array.isArray(data) &&
+      data.length > 0 &&
+      customersMap.size > 0
+    ) {
+      const extractedOrders = data.map((item) =>
+        extractOrderData(item, customersMap),
+      );
       setOrders(extractedOrders);
     }
-  }, [data]);
+  }, [data, customersMap]);
 
   const filtered = orders.filter(
     (o) =>

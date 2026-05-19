@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   useFetchAllProduits,
   fetchPrestashop,
@@ -6,7 +6,9 @@ import {
 import "./StockManagement.css";
 
 export default function StockManagement() {
-  const { loading, data, errors } = useFetchAllProduits("products", { restUrl: "limit=0,100" });
+  const { loading, data, errors } = useFetchAllProduits("products", {
+    restUrl: "limit=0,100",
+  });
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [combinations, setCombinations] = useState([]);
@@ -16,13 +18,20 @@ export default function StockManagement() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [processing, setProcessing] = useState(false);
 
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [filteredProducts, setFilteredProducts] = useState([]);
+  const searchRef = useRef(null);
+  const inputRef = useRef(null);
+
   // Transformer les produits
   const transformProduct = useCallback(async (item) => {
     const productData = item.product;
     const name = productData.name?.language?.["#cdata"] || "";
-    
+
     // Vérifier si le produit a des combinaisons
-    const hasCombinations = productData.associations?.combinations?.combination &&
+    const hasCombinations =
+      productData.associations?.combinations?.combination &&
       (Array.isArray(productData.associations.combinations.combination)
         ? productData.associations.combinations.combination.length > 0
         : true);
@@ -33,14 +42,16 @@ export default function StockManagement() {
     } else {
       // Produit simple - récupérer le stock
       const stock = await getProductStock(productData);
-      productCombinations = [{
-        id: null,
-        reference: productData.reference?.["#cdata"] || "",
-        name: "Défaut",
-        quantity: stock,
-        price: parseFloat(productData.price?.["#cdata"] || 0),
-        defaultOn: true
-      }];
+      productCombinations = [
+        {
+          id: null,
+          reference: productData.reference?.["#cdata"] || "",
+          name: "Défaut",
+          quantity: stock,
+          price: parseFloat(productData.price?.["#cdata"] || 0),
+          defaultOn: true,
+        },
+      ];
     }
 
     return {
@@ -56,25 +67,35 @@ export default function StockManagement() {
   // Récupérer les combinaisons d'un produit
   const fetchCombinationsForProduct = async (productData) => {
     try {
-      const combinationsData = productData.associations?.combinations?.combination;
+      const combinationsData =
+        productData.associations?.combinations?.combination;
       if (!combinationsData) return [];
 
-      const combinationArray = Array.isArray(combinationsData) ? combinationsData : [combinationsData];
-      const combinationsId = combinationArray.map(combo => combo.id?.["#cdata"]);
+      const combinationArray = Array.isArray(combinationsData)
+        ? combinationsData
+        : [combinationsData];
+      const combinationsId = combinationArray.map(
+        (combo) => combo.id?.["#cdata"],
+      );
 
       // Récupérer les détails de chaque combinaison
       const combinationsDetails = await Promise.all(
         combinationsId.map(async (id) => {
           const comboResponse = await fetchPrestashop(`combinations/${id}`);
           return comboResponse.data;
-        })
+        }),
       );
 
       // Récupérer les stocks
-      const stocksData = productData.associations?.stock_availables?.stock_available;
-      const stockArray = stocksData ? (Array.isArray(stocksData) ? stocksData : [stocksData]) : [];
+      const stocksData =
+        productData.associations?.stock_availables?.stock_available;
+      const stockArray = stocksData
+        ? Array.isArray(stocksData)
+          ? stocksData
+          : [stocksData]
+        : [];
 
-      let stocks = stockArray.map(stock => ({
+      let stocks = stockArray.map((stock) => ({
         id: stock.id?.["#cdata"],
         attributeId: stock.id_product_attribute?.["#cdata"],
         quantity: parseInt(stock.quantity?.["#cdata"] || 0),
@@ -84,47 +105,65 @@ export default function StockManagement() {
       const stocksDetails = await Promise.all(
         stocks.map(async (stock) => {
           if (stock.id) {
-            const stockResponse = await fetchPrestashop(`stock_availables/${stock.id}`);
+            const stockResponse = await fetchPrestashop(
+              `stock_availables/${stock.id}`,
+            );
             return stockResponse.data;
           }
           return null;
-        })
+        }),
       );
 
       stocks = stocks.map((stock) => {
         const stockDetail = stocksDetails.find(
-          detail => detail?.stock_available?.id?.["#cdata"] === stock.id
+          (detail) => detail?.stock_available?.id?.["#cdata"] === stock.id,
         );
         return {
           ...stock,
-          quantity: parseInt(stockDetail?.stock_available?.quantity?.["#cdata"] || stock.quantity),
+          quantity: parseInt(
+            stockDetail?.stock_available?.quantity?.["#cdata"] ||
+              stock.quantity,
+          ),
         };
       });
 
       // Récupérer les noms des options pour chaque combinaison
       const allCombinationsWithDetails = await Promise.all(
         combinationsDetails.map(async (comboDetail) => {
-          const productOptionValues = comboDetail?.combination?.associations?.product_option_values?.product_option_value;
-          
+          const productOptionValues =
+            comboDetail?.combination?.associations?.product_option_values
+              ?.product_option_value;
+
           let optionValueIds = [];
           if (productOptionValues) {
             if (Array.isArray(productOptionValues)) {
-              optionValueIds = productOptionValues.map(value => value?.id?.["#cdata"]).filter(Boolean);
+              optionValueIds = productOptionValues
+                .map((value) => value?.id?.["#cdata"])
+                .filter(Boolean);
             } else {
-              optionValueIds = [productOptionValues?.id?.["#cdata"]].filter(Boolean);
+              optionValueIds = [productOptionValues?.id?.["#cdata"]].filter(
+                Boolean,
+              );
             }
           }
 
           // Récupérer les noms des options
           let optionNames = [];
           for (const id of optionValueIds) {
-            const optionValueResponse = await fetchPrestashop(`product_option_values/${id}`);
-            const name = optionValueResponse.data?.product_option_value?.name?.language?.["#cdata"];
+            const optionValueResponse = await fetchPrestashop(
+              `product_option_values/${id}`,
+            );
+            const name =
+              optionValueResponse.data?.product_option_value?.name?.language?.[
+                "#cdata"
+              ];
             if (name) optionNames.push(name);
           }
 
-          const stock = stocks.find(s => s.attributeId === comboDetail.combination.id?.["#cdata"]);
-          
+          const stock = stocks.find(
+            (s) => s.attributeId === comboDetail.combination.id?.["#cdata"],
+          );
+
           return {
             id: parseInt(comboDetail.combination.id?.["#cdata"]),
             reference: comboDetail.combination.reference?.["#cdata"] || "",
@@ -133,7 +172,7 @@ export default function StockManagement() {
             price: parseFloat(comboDetail.combination.price?.["#cdata"] || 0),
             defaultOn: comboDetail.combination.default_on?.["#cdata"] === "1",
           };
-        })
+        }),
       );
 
       return allCombinationsWithDetails;
@@ -146,7 +185,8 @@ export default function StockManagement() {
   // Récupérer le stock d'un produit simple
   const getProductStock = async (productData) => {
     try {
-      const stocksData = productData.associations?.stock_availables?.stock_available;
+      const stocksData =
+        productData.associations?.stock_availables?.stock_available;
       if (!stocksData) return 0;
 
       const stockArray = Array.isArray(stocksData) ? stocksData : [stocksData];
@@ -156,9 +196,13 @@ export default function StockManagement() {
       const stockId = firstStock.id?.["#cdata"];
 
       if (stockId) {
-        const stockResponse = await fetchPrestashop(`stock_availables/${stockId}`);
+        const stockResponse = await fetchPrestashop(
+          `stock_availables/${stockId}`,
+        );
         if (stockResponse.data?.stock_available?.quantity) {
-          return parseInt(stockResponse.data.stock_available.quantity["#cdata"] || 0);
+          return parseInt(
+            stockResponse.data.stock_available.quantity["#cdata"] || 0,
+          );
         }
       }
       return 0;
@@ -172,19 +216,19 @@ export default function StockManagement() {
   useEffect(() => {
     const loadProducts = async () => {
       if (!data || data.length === 0 || processing) return;
-      
+
       setProcessing(true);
       try {
         const batchSize = 5;
         const allProducts = [];
-        
+
         for (let i = 0; i < data.length; i += batchSize) {
           const batch = data.slice(i, i + batchSize);
           const batchResults = await Promise.all(
-            batch.map(item => transformProduct(item))
+            batch.map((item) => transformProduct(item)),
           );
           allProducts.push(...batchResults);
-          
+
           // Mise à jour progressive
           setProducts([...allProducts]);
         }
@@ -194,19 +238,54 @@ export default function StockManagement() {
         setProcessing(false);
       }
     };
-    
+
     loadProducts();
   }, [data, transformProduct]);
+
+  // Filtrer les produits en fonction de la recherche
+  useEffect(() => {
+    if (searchTerm.trim() === "") {
+      setFilteredProducts(products.filter((p) => p.active).slice(0, 20));
+    } else {
+      const filtered = products
+        .filter(
+          (p) =>
+            p.active &&
+            (p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              (p.reference &&
+                p.reference.toLowerCase().includes(searchTerm.toLowerCase()))),
+        )
+        .slice(0, 30);
+      setFilteredProducts(filtered);
+    }
+  }, [searchTerm, products]);
+
+  // Fermer le dropdown quand on clique en dehors
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Mettre à jour le stock via l'API
   const updateStock = async () => {
     if (!selectedProduct) {
-      setUpdateStatus({ type: "error", message: "Veuillez sélectionner un produit" });
+      setUpdateStatus({
+        type: "error",
+        message: "Veuillez sélectionner un produit",
+      });
       return;
     }
 
     if (quantityDelta === 0) {
-      setUpdateStatus({ type: "error", message: "La quantité doit être différente de 0" });
+      setUpdateStatus({
+        type: "error",
+        message: "La quantité doit être différente de 0",
+      });
       return;
     }
 
@@ -216,85 +295,94 @@ export default function StockManagement() {
     try {
       const productId = selectedProduct.id;
       const attributeId = selectedCombination?.id || 0;
-      
+
       const url = `http://localhost/prestashop2/module/stockapi/updateStock?id_product=${productId}&id_attribute=${attributeId}&delta=${quantityDelta}`;
-      
+
       const response = await fetch(url, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        credentials: 'include'
+        credentials: "include",
       });
 
       const result = await response.json();
 
       if (result.success) {
-        setUpdateStatus({ 
-          type: "success", 
-          message: `Stock mis à jour : ${result.new_quantity} unités disponibles` 
+        setUpdateStatus({
+          type: "success",
+          message: `Stock mis à jour : ${result.new_quantity} unités disponibles`,
         });
-        
+
         // Mettre à jour l'affichage local
         if (selectedCombination) {
           setSelectedCombination({
             ...selectedCombination,
-            quantity: result.new_quantity
+            quantity: result.new_quantity,
           });
-          
+
           // Mettre à jour dans la liste des combinaisons
-          setCombinations(prevCombos =>
-            prevCombos.map(combo =>
+          setCombinations((prevCombos) =>
+            prevCombos.map((combo) =>
               combo.id === selectedCombination.id
                 ? { ...combo, quantity: result.new_quantity }
-                : combo
-            )
+                : combo,
+            ),
           );
-          
+
           // Mettre à jour dans le produit sélectionné
-          setSelectedProduct(prev => ({
+          setSelectedProduct((prev) => ({
             ...prev,
-            combinations: prev.combinations.map(combo =>
+            combinations: prev.combinations.map((combo) =>
               combo.id === selectedCombination.id
                 ? { ...combo, quantity: result.new_quantity }
-                : combo
-            )
+                : combo,
+            ),
           }));
         } else {
           // Produit simple
-          setSelectedProduct(prev => ({
+          setSelectedProduct((prev) => ({
             ...prev,
-            combinations: prev.combinations.map(combo =>
+            combinations: prev.combinations.map((combo) =>
               combo.id === null
                 ? { ...combo, quantity: result.new_quantity }
-                : combo
-            )
+                : combo,
+            ),
           }));
         }
       } else {
-        setUpdateStatus({ type: "error", message: result.message || "Erreur lors de la mise à jour" });
+        setUpdateStatus({
+          type: "error",
+          message: result.message || "Erreur lors de la mise à jour",
+        });
       }
     } catch (error) {
       console.error("Error updating stock:", error);
-      setUpdateStatus({ type: "error", message: "Erreur réseau lors de la mise à jour" });
+      setUpdateStatus({
+        type: "error",
+        message: "Erreur réseau lors de la mise à jour",
+      });
     } finally {
       setIsUpdating(false);
     }
   };
 
-  const handleProductSelect = (productId) => {
-    const product = products.find(p => p.id === parseInt(productId));
-    if (product) {
-      setSelectedProduct(product);
-      setCombinations(product.combinations);
-      setSelectedCombination(product.combinations.find(c => c.defaultOn) || product.combinations[0] || null);
-      setUpdateStatus({ type: "", message: "" });
-      setQuantityDelta(1);
-    }
+  const handleProductSelect = (product) => {
+    setSelectedProduct(product);
+    setCombinations(product.combinations);
+    setSelectedCombination(
+      product.combinations.find((c) => c.defaultOn) ||
+        product.combinations[0] ||
+        null,
+    );
+    setUpdateStatus({ type: "", message: "" });
+    setQuantityDelta(1);
+    setSearchTerm(product.name);
+    setShowDropdown(false);
   };
 
   const handleCombinationSelect = (combinationId) => {
-    const combo = combinations.find(c => c.id === combinationId);
+    const combo = combinations.find((c) => c.id === combinationId);
     setSelectedCombination(combo);
     setQuantityDelta(1);
   };
@@ -321,28 +409,61 @@ export default function StockManagement() {
     <div className="stock-management">
       <div className="page-header">
         <h1 className="page-title">Gestion des stocks</h1>
-        <p className="page-description">Ajoutez ou retirez du stock pour vos produits</p>
+        <p className="page-description">
+          Ajoutez ou retirez du stock pour vos produits
+        </p>
       </div>
 
       <div className="stock-management-container">
         {/* Sélection du produit */}
         <div className="form-group">
-          <label htmlFor="product-select">Produit</label>
-          <select
-            id="product-select"
-            value={selectedProduct?.id || ""}
-            onChange={(e) => handleProductSelect(e.target.value)}
-            className="form-select"
-          >
-            <option value="">Sélectionner un produit</option>
-            {products
-              .filter(p => p.active)
-              .map(product => (
-                <option key={product.id} value={product.id}>
-                  {product.name} {product.reference && `(Réf: ${product.reference})`}
-                </option>
-              ))}
-          </select>
+          <label htmlFor="product-search">Produit</label>
+          <div className="autocomplete-container" ref={searchRef}>
+            <input
+              ref={inputRef}
+              type="text"
+              id="product-search"
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setShowDropdown(true);
+              }}
+              onFocus={() => setShowDropdown(true)}
+              placeholder="Rechercher un produit..."
+              className="form-input autocomplete-input"
+            />
+            {showDropdown && filteredProducts.length > 0 && (
+              <div className="autocomplete-dropdown">
+                {filteredProducts.map((product) => (
+                  <div
+                    key={product.id}
+                    className="autocomplete-item"
+                    onClick={() => handleProductSelect(product)}
+                  >
+                    <div className="autocomplete-item-name">{product.name}</div>
+                    {product.reference && (
+                      <div className="autocomplete-item-ref">
+                        Réf: {product.reference}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {showDropdown && searchTerm && filteredProducts.length === 0 && (
+              <div className="autocomplete-dropdown">
+                <div className="autocomplete-no-results">
+                  Aucun produit trouvé
+                </div>
+              </div>
+            )}
+          </div>
+          {selectedProduct && (
+            <div className="selected-product-badge">
+              Produit sélectionné : <strong>{selectedProduct.name}</strong>
+              {selectedProduct.reference && ` (${selectedProduct.reference})`}
+            </div>
+          )}
         </div>
 
         {/* Sélection de la déclinaison */}
@@ -352,12 +473,17 @@ export default function StockManagement() {
             <select
               id="combination-select"
               value={selectedCombination?.id || ""}
-              onChange={(e) => handleCombinationSelect(e.target.value === "null" ? null : parseInt(e.target.value))}
+              onChange={(e) =>
+                handleCombinationSelect(
+                  e.target.value === "null" ? null : parseInt(e.target.value),
+                )
+              }
               className="form-select"
             >
-              {combinations.map(combo => (
+              {combinations.map((combo) => (
                 <option key={combo.id || "default"} value={combo.id || "null"}>
-                  {combo.name} - Stock: {combo.quantity} - Réf: {combo.reference}
+                  {combo.name} - Stock: {combo.quantity} - Réf:{" "}
+                  {combo.reference}
                 </option>
               ))}
             </select>
@@ -370,16 +496,20 @@ export default function StockManagement() {
             <h3>Stock actuel</h3>
             <div className="stock-value">{selectedCombination.quantity}</div>
             <div className="stock-reference">
-              Référence: {selectedCombination.reference || selectedProduct?.reference || "N/A"}
+              Référence:{" "}
+              {selectedCombination.reference ||
+                selectedProduct?.reference ||
+                "N/A"}
             </div>
           </div>
         )}
 
         {/* Quantité à modifier */}
         <div className="form-group">
-          <label htmlFor="quantity-delta">Quantité à {quantityDelta > 0 ? "ajouter" : "retirer"}</label>
+          <label htmlFor="quantity-delta">
+            Quantité à {quantityDelta > 0 ? "ajouter" : "retirer"}
+          </label>
           <div className="quantity-delta-control">
-            
             <input
               type="number"
               id="quantity-delta"
@@ -387,12 +517,11 @@ export default function StockManagement() {
               onChange={(e) => setQuantityDelta(parseInt(e.target.value) || 0)}
               className="form-input quantity-input"
             />
-            
           </div>
           <small className="form-hint">
-            {quantityDelta > 0 
-              ? `Ajoutera ${quantityDelta} unité(s) au stock` 
-              : quantityDelta < 0 
+            {quantityDelta > 0
+              ? `Ajoutera ${quantityDelta} unité(s) au stock`
+              : quantityDelta < 0
                 ? `Retirera ${Math.abs(quantityDelta)} unité(s) du stock`
                 : "Entrez une quantité différente de 0"}
           </small>
@@ -409,7 +538,12 @@ export default function StockManagement() {
         <button
           className="btn-update-stock"
           onClick={updateStock}
-          disabled={!selectedProduct || !selectedCombination || quantityDelta === 0 || isUpdating}
+          disabled={
+            !selectedProduct ||
+            !selectedCombination ||
+            quantityDelta === 0 ||
+            isUpdating
+          }
         >
           {isUpdating ? (
             <>
