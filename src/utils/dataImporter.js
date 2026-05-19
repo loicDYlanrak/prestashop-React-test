@@ -32,6 +32,68 @@ const getCombinationKey = (productRef, attributeName, attributeValue) => {
   return `${productRef}|${attributeName}|${attributeValue}`;
 };
 
+/**
+ * Convertit une date en format JJ/MM/YYYY en timestamp pour tri
+ * Robuste aux formats mal formatés et retourne 0 en cas d'erreur
+ */
+const parseDate = (dateStr) => {
+  if (!dateStr || typeof dateStr !== 'string') return 0;
+  
+  const parts = dateStr.trim().split("/");
+  if (parts.length !== 3) return 0;
+  
+  const day = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const year = parseInt(parts[2], 10);
+  
+  // Valider que les valeurs sont des nombres valides
+  if (isNaN(day) || isNaN(month) || isNaN(year)) return 0;
+  
+  // Créer la date au format ISO avec padding
+  const monthStr = String(month).padStart(2, '0');
+  const dayStr = String(day).padStart(2, '0');
+  
+  const date = new Date(`${year}-${monthStr}-${dayStr}T00:00:00Z`);
+  const timestamp = date.getTime();
+  
+  // Vérifier que la date est valide (pas NaN)
+  return isNaN(timestamp) ? 0 : timestamp;
+};
+
+/**
+ * Extrait le timestamp d'une date (sans l'heure) au format JJ/MM/YYYY
+ */
+const getDateTimestamp = (dateStr) => {
+  if (!dateStr) return 0;
+  const [day, month, year] = dateStr.split("/");
+  return new Date(`${year}-${month}-${day}`).getTime();
+};
+
+/**
+ * Formate une date JJ/MM/YYYY en YYYY-MM-DD HH:MM:SS de manière consistante
+ */
+const formatDateWithTime = (dateStr, time = "12:00:57") => {
+  if (!dateStr) return null;
+  const [day, month, year] = dateStr.split("/");
+  return `${year}-${month}-${day} ${time}`;
+};
+
+/**
+ * Extrait juste la partie date (YYYY-MM-DD) d'une date formatée
+ */
+const getDatePart = (dateStr) => {
+  if (!dateStr) return null;
+  return dateStr.split(" ")[0]; // Retourne YYYY-MM-DD
+};
+
+/**
+ * Compare deux dates (format JJ/MM/YYYY) de manière robuste via timestamp
+ */
+const areDatesEqual = (date1Str, date2Str) => {
+  if (!date1Str || !date2Str) return false;
+  return getDateTimestamp(date1Str) === getDateTimestamp(date2Str);
+};
+
 async function parallelLimit(items, limit, asyncFn) {
   const results = [];
   const executing = new Set();
@@ -903,13 +965,21 @@ export async function updateStocks(productStocks, options = {}) {
   const results = [];
   const stocksToUpdate = [];
 
-  // Étape 1 : Récupérer les IDs des stocks
+  // Étape 1 : Grouper les stocks par produit pour minimiser les requêtes
+  const stocksByProduct = new Map();
+
   for (const [productRef, stocks] of Object.entries(productStocks)) {
     const productInfo = entityCache.products.get(productRef);
 
     if (!productInfo) {
-      results.push({ productRef, error: "Produit non trouvé", success: false });
+      for (const stock of stocks) {
+        results.push({ productRef, stock, error: "Produit non trouvé", success: false });
+      }
       continue;
+    }
+
+    if (!stocksByProduct.has(productRef)) {
+      stocksByProduct.set(productRef, []);
     }
 
     for (const stock of stocks) {
@@ -924,54 +994,123 @@ export async function updateStocks(productStocks, options = {}) {
         combinationId = productInfo.combinations.get(cacheKey);
       }
 
+      stocksByProduct.get(productRef).push({
+        stock,
+        combinationId,
+        productInfo,
+      });
+    }
+  }
+
+  // Étape 1b : Récupérer les IDs des stocks EN PARALLÈLE (une requête par produit)
+  const fetchTasks = [];
+
+  for (const [productRef, stocks] of stocksByProduct.entries()) {
+    const productInfo = stocks[0].productInfo;
+
+    fetchTasks.push({
+      productRef,
+      productInfo,
+      stocks,
+    });
+  }
+
+  const fetchResults = await parallelLimit(
+    fetchTasks,
+    6, // Limite réduite pour les fetch (requêtes lourdes)
+    async (fetchTask) => {
       try {
-        let url = `stock_availables`;
-        let urlRest = `filter[id_product]=[${productInfo.id}]`;
-        if (combinationId?.["#cdata"]) {
-          urlRest += `&filter[id_product_attribute]=[${combinationId?.["#cdata"]}]`;
+        const urlRest = `filter[id_product]=[${fetchTask.productInfo.id}]`;
+
+        const response = await fetchPrestashop("stock_availables", { urlRest });
+
+        if (!response.success || !response.data?.stock_availables) {
+          return {
+            productRef: fetchTask.productRef,
+            stocks: fetchTask.stocks,
+            stockMap: new Map(),
+            error: "Impossible de récupérer les stocks",
+          };
         }
 
-        const response = await fetchPrestashop(url, { urlRest: urlRest });
-        if (response.success && response.data?.stock_availables) {
-          let stockAvailableId = null;
+        // Créer une map des stocks disponibles par clé (id_product|id_product_attribute)
+        const stockMap = new Map();
+        const stockAvailablesData = Array.isArray(
+          response.data.stock_availables.stock_available,
+        )
+          ? response.data.stock_availables.stock_available
+          : [response.data.stock_availables.stock_available];
 
-          if (Array.isArray(response.data.stock_availables.stock_available)) {
-            stockAvailableId =
-              response.data.stock_availables.stock_available?.[0]?.["@_id"];
-          } else {
-            stockAvailableId =
-              response.data.stock_availables.stock_available?.["@_id"];
-          }
+        for (const stockAvailable of stockAvailablesData) {
+          const idProduct =
+            stockAvailable["@_id_product"] ||
+            stockAvailable.id_product?.["#cdata"];
+          const idAttribute =
+            stockAvailable["@_id_product_attribute"] ||
+            stockAvailable.id_product_attribute?.["#cdata"] ||
+            "0";
+          const stockId =
+            stockAvailable["@_id"] || stockAvailable.id?.["#cdata"];
 
-          if (stockAvailableId) {
-            stocksToUpdate.push({
-              productRef,
-              stock,
-              stockAvailableId,
-              combinationId,
-              productInfo,
-            });
-          } else {
-            results.push({
-              productRef,
-              stock,
-              error: "Stock ID non trouvé",
-              success: false,
-            });
+          if (idProduct && stockId) {
+            const key = `${idProduct}|${idAttribute}`;
+            stockMap.set(key, stockId);
           }
-        } else {
-          results.push({
-            productRef,
-            stock,
-            error: "Impossible de récupérer le stock",
-            success: false,
-          });
         }
+
+        return {
+          productRef: fetchTask.productRef,
+          stocks: fetchTask.stocks,
+          stockMap,
+          success: true,
+        };
       } catch (error) {
-        results.push({
-          productRef,
-          stock,
+        return {
+          productRef: fetchTask.productRef,
+          stocks: fetchTask.stocks,
+          stockMap: new Map(),
           error: error.message,
+        };
+      }
+    },
+  );
+
+  // Traiter les résultats des fetch et préparer les mises à jour
+  for (const fetchResult of fetchResults) {
+    if (!fetchResult.success) {
+      for (const stockItem of fetchResult.stocks) {
+        results.push({
+          productRef: fetchResult.productRef,
+          stock: stockItem.stock,
+          error: fetchResult.error,
+          success: false,
+        });
+      }
+      continue;
+    }
+
+    for (const stockItem of fetchResult.stocks) {
+      const { stock, combinationId, productInfo } = stockItem;
+
+      const stockKey = combinationId?.["#cdata"]
+        ? `${productInfo.id}|${combinationId["#cdata"]}`
+        : `${productInfo.id}|0`;
+
+      const stockAvailableId = fetchResult.stockMap.get(stockKey);
+
+      if (stockAvailableId) {
+        stocksToUpdate.push({
+          productRef: fetchResult.productRef,
+          stock,
+          stockAvailableId,
+          combinationId,
+          productInfo,
+        });
+      } else {
+        results.push({
+          productRef: fetchResult.productRef,
+          stock,
+          error: "Stock ID non trouvé",
           success: false,
         });
       }
@@ -1234,9 +1373,11 @@ export async function importCarts(cartsData, options = {}) {
   const results = [];
   const cartsToProcess = [];
   const cartsToUpdateDate = [];
-
-  for (let i = 0; i < cartsData.length; i++) {
-    const cart = cartsData[i];
+  // console.log("Donnees des paniers à traiter :", cartsData);
+  const sortedCartsData = [...cartsData].sort((a, b) => parseDate(a.date) - parseDate(b.date));
+  // console.log("Donnees des paniers triées par date :", sortedCartsData);
+  for (let i = 0; i < sortedCartsData.length; i++) {
+    const cart = sortedCartsData[i];
     const customerId = entityCache.customers.get(cart.client_email);
 
     if (!customerId?.["#cdata"]) {
@@ -1344,8 +1485,7 @@ export async function importCarts(cartsData, options = {}) {
 
         if (cartId) {
           const originalDate = cartObj.cart.date;
-          const [day, month, year] = originalDate.split("/");
-          const formattedDate = `${year}-${month}-${day} 12:00:57`;
+          const formattedDate = formatDateWithTime(originalDate, "12:00:57");
 
           const cartCacheKey = `${cartId?.["#cdata"]}|${formattedDate}`;
 
@@ -1470,8 +1610,13 @@ export async function importOrders(ordersData, options = {}) {
   const ordersToProcess = [];
   let ordersToUpdateDate = [];
 
-  for (let i = 0; i < ordersData.length; i++) {
-    const order = ordersData[i];
+  // console.log("Données brutes pour importOrders:", ordersData);
+  const sortedOrdersData = [...ordersData].sort((a, b) => parseDate(a.date) - parseDate(b.date));
+
+  // console.log("Donnees triees pour importOrders:", sortedOrdersData);
+
+  for (let i = 0; i < sortedOrdersData.length; i++) {
+    const order = sortedOrdersData[i];
     const customerId = entityCache.customers.get(order.client_email);
 
     if (!customerId?.["#cdata"]) {
@@ -1499,14 +1644,15 @@ export async function importOrders(ordersData, options = {}) {
 
     // Formater la date de la commande pour comparaison
     const orderDate = order.date;
-    const [orderDay, orderMonth, orderYear] = orderDate.split("/");
-    const formattedOrderDate = `${orderYear}-${orderMonth}-${orderDay} 12:00:57`;
+    const formattedOrderDate = formatDateWithTime(orderDate, "12:00:57");
+    const orderDateOnly = getDatePart(formattedOrderDate); // YYYY-MM-DD
 
     // Rechercher un panier correspondant au client ET à la date
     for (const [storedCartKey, cartInfo] of entityCache.carts.entries()) {
       if (cartInfo.customer_email === order.client_email) {
-        // Vérifier si la date du panier correspond à celle de la commande
-        if (cartInfo.cart_date !== formattedOrderDate) {
+        // Vérifier si la date du panier correspond à celle de la commande (comparaison par timestamp)
+        const cartDateOnly = getDatePart(cartInfo.cart_date); // YYYY-MM-DD
+        if (cartDateOnly !== orderDateOnly) {
           continue; // Date différente, passer au panier suivant
         }
 
@@ -1651,31 +1797,44 @@ export async function importOrders(ordersData, options = {}) {
         const orderId = response?.order?.id;
 
         if (orderId) {
-          const [day, month, year] = orderObj.order.date.split("/");
-          const formattedDate = `${year}-${month}-${day} 12:00:57`;
+          const formattedDate = formatDateWithTime(orderObj.order.date, "12:00:57");
+          const orderIdValue = orderId?.["#cdata"];
+          const etatOriginal = orderObj.order.etat;
 
           entityCache.orders.set(orderId, {
             id: orderId,
-            ref: orderId?.["#cdata"],
+            ref: orderIdValue,
             email: orderObj.order.client_email,
-            etat_original: orderObj.order.etat,
+            etat_original: etatOriginal,
             order_date: formattedDate,
           });
           if (!ordersToUpdateDate) {
             ordersToUpdateDate = [];
           }
           ordersToUpdateDate.push({
-            orderIdValue: orderId?.["#cdata"],
+            orderIdValue: orderIdValue,
             formattedDate: formattedDate,
             email: orderObj.order.client_email,
           });
 
+          let cancelResult = null;
+          if (etatOriginal && etatOriginal.toLowerCase() === "annulé") {
+            cancelResult = await cancelOrder(orderIdValue, orderIdValue, options);
+            if (!cancelResult.success) {
+              console.error(
+                `Erreur lors de l'annulation immédiate de la commande ${orderIdValue}:`,
+                cancelResult.error
+              );
+            }
+          }
+
           return {
             email: orderObj.order.client_email,
             orderId,
-            orderIdValue: orderId?.["#cdata"],
-            etat_original: orderObj.order.etat,
+            orderIdValue: orderIdValue,
+            etat_original: etatOriginal,
             date: formattedDate,
+            cancelled_immediately: cancelResult?.success || false,
             success: true,
           };
         }
