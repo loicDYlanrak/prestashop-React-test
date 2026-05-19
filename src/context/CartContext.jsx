@@ -2,6 +2,7 @@
 /* eslint-disable react/prop-types */
 // contexts/CartContext.jsx
 import { createContext, useContext, useState, useEffect } from "react";
+import { fetchPrestashop } from "../hooks/useFetchPrestashop.js";
 
 const CartContext = createContext();
 
@@ -91,6 +92,192 @@ export const CartProvider = ({ children }) => {
     setCart([]);
   };
 
+  const loadCartFromPrestashop = async (customerId) => {
+  try {
+    // Récupérer les paniers du client
+    const responseCarts = await fetchPrestashop("carts", {
+      urlRest: `filter[id_customer]=[${customerId}]`,
+    });
+    
+    const cartsData = responseCarts.data?.carts?.cart;
+    const cartsArray = Array.isArray(cartsData)
+      ? cartsData
+      : cartsData
+        ? [cartsData]
+        : [];
+    
+    if (cartsArray.length === 0) return null;
+    
+    const idsCarts = cartsArray.map((cart) => cart.id?.["#cdata"] || cart["@_id"]);
+    
+    // Filtrer les paniers sans commande associée
+    const idsCartWithoutOrder = [];
+    for (const idCart of idsCarts) {
+      const responseOrders = await fetchPrestashop("orders", {
+        urlRest: `filter[id_cart]=[${idCart}]`,
+      });
+      const ordersData = responseOrders.data?.orders?.order;
+      const ordersArray = Array.isArray(ordersData)
+        ? ordersData
+        : ordersData
+          ? [ordersData]
+          : [];
+      if (ordersArray.length === 0) {
+        idsCartWithoutOrder.push(idCart);
+      }
+    }
+    // console.log("idsCartWithoutOrder: ", idsCartWithoutOrder);
+    if (idsCartWithoutOrder.length === 0) return null;
+    
+    // Prendre le dernier panier sans commande
+    const lastCartId = idsCartWithoutOrder[idsCartWithoutOrder.length - 1];
+    const responseCartDetails = await fetchPrestashop(`carts/${lastCartId}`);
+    const cartDetails = responseCartDetails.data?.cart;
+    
+    if (!cartDetails || !cartDetails.associations?.cart_rows) return null;
+    
+    // Transformer les produits du panier
+    const cartRows = cartDetails.associations.cart_rows.cart_row;
+    const cartItems = Array.isArray(cartRows) ? cartRows : [cartRows];
+    
+    const loadedCart = [];
+    for (const row of cartItems) {
+      const productId = row.id_product?.["#cdata"];
+      const combinationId = row.id_product_attribute?.["#cdata"];
+      const quantity = parseInt(row.quantity?.["#cdata"] || 0);
+      
+      if (quantity <= 0) continue;
+      
+      // Récupérer les détails du produit
+      const productResponse = await fetchPrestashop(`products/${productId}`);
+      const productData = productResponse.data?.product;
+      
+      if (!productData) continue;
+      
+      // Récupérer la combinaison si elle existe
+      let selectedCombination = null;
+      if (combinationId && combinationId !== "0") {
+        const comboResponse = await fetchPrestashop(`combinations/${combinationId}`);
+        const comboData = comboResponse.data?.combination;
+        if (comboData) {
+          selectedCombination = {
+            id: parseInt(comboData.id?.["#cdata"]),
+            reference: comboData.reference?.["#cdata"] || "",
+            price: parseFloat(comboData.price?.["#cdata"] || 0),
+            quantity: quantity
+          };
+        }
+      }
+      
+      // Transformer le produit (utilisez la même logique que dans ProductsList)
+      const transformedProduct = await transformPrestashopProduct(productData);
+      
+      const itemId = selectedCombination
+        ? `${productId}_${combinationId}`
+        : `${productId}`;
+      
+      loadedCart.push({
+        ...transformedProduct,
+        cartItemId: itemId,
+        quantity: quantity,
+        selectedCombination: selectedCombination,
+        combinationId: selectedCombination?.id || null,
+        combinationReference: selectedCombination?.reference || null,
+        combinationPrice: selectedCombination?.price || 0,
+      });
+    }
+    
+    if (loadedCart.length > 0) {
+      setCart(loadedCart);
+      return loadedCart;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error loading cart from PrestaShop:", error);
+    return null;
+  }
+};
+
+// Ajouter la fonction utilitaire pour transformer un produit PrestaShop
+const transformPrestashopProduct = async (productData) => {
+  // Calculer le prix TTC
+  const priceHT = parseFloat(productData.price?.["#cdata"] || 0);
+  let taxRate = 20;
+  
+  // Récupérer le taux de TVA
+  const idTaxRuleGroup = productData?.id_tax_rules_group?.["#cdata"];
+  if (idTaxRuleGroup) {
+    try {
+      const taxeRule = `&filter[id_tax_rules_group]=${idTaxRuleGroup}&filter[id_country]=8`;
+      const response = await fetchPrestashop("tax_rules", { urlRest: taxeRule });
+      if (response?.data?.tax_rules?.tax_rule?.["@_id"]) {
+        const idTaxRule = response.data.tax_rules.tax_rule["@_id"];
+        const response2 = await fetchPrestashop(`tax_rules/${idTaxRule}`);
+        if (response2?.data?.tax_rule?.id_tax?.["#cdata"]) {
+          const idTax = response2.data.tax_rule.id_tax["#cdata"];
+          const response3 = await fetchPrestashop(`taxes/${idTax}`);
+          if (response3?.data?.tax?.rate?.["#cdata"]) {
+            taxRate = parseFloat(response3.data.tax.rate["#cdata"]);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching tax rate:", error);
+    }
+  }
+  
+  const priceTTC = priceHT * (1 + taxRate / 100);
+  
+  // Vérifier les prix spécifiques
+  let finalPrice = priceTTC;
+  let specificPriceValue = 0;
+  
+  const specificPriceResponse = await fetchPrestashop("specific_prices", {
+    urlRest: `filter[id_product]=[${productData.id?.["#cdata"]}]`,
+  });
+  
+  if (specificPriceResponse.data?.specific_prices?.specific_price) {
+    const specificPricesData = specificPriceResponse.data.specific_prices.specific_price;
+    const specificPrice = Array.isArray(specificPricesData) ? specificPricesData[0] : specificPricesData;
+    
+    if (specificPrice && specificPrice.reduction?.["#cdata"]) {
+      const reduction = parseFloat(specificPrice.reduction["#cdata"]);
+      const reductionType = specificPrice.reduction_type?.["#cdata"];
+      
+      if (reductionType === "percentage") {
+        finalPrice = priceTTC * (1 - reduction);
+        specificPriceValue = finalPrice;
+      } else if (reductionType === "amount") {
+        finalPrice = priceTTC - reduction;
+        specificPriceValue = finalPrice;
+      }
+    }
+  }
+  
+  // Récupérer l'image
+  let imageUrl = "https://placehold.co/400?text=Product";
+  const imagesData = productData.associations?.images?.image;
+  if (imagesData) {
+    const imageId = Array.isArray(imagesData)
+      ? imagesData[0]?.id?.["#cdata"]
+      : imagesData?.id?.["#cdata"];
+    if (imageId && productData.id?.["#cdata"]) {
+      imageUrl = `http://localhost/prestashop2/api/images/products/${productData.id["#cdata"]}/${imageId}?ws_key=2LA1668U53GC9T35AIT5Y3P7E8CKG7LL`;
+    }
+  }
+  
+  return {
+    id: parseInt(productData.id?.["#cdata"]),
+    name: productData.name?.language?.["#cdata"] || "",
+    price: finalPrice,
+    specificPrice: specificPriceValue,
+    imageUrl: imageUrl,
+    reference: productData.reference?.["#cdata"] || "",
+    taxRate: taxRate,
+  };
+};
+
   return (
     <CartContext.Provider
       value={{
@@ -100,6 +287,7 @@ export const CartProvider = ({ children }) => {
         removeFromCart,
         updateQuantity,
         clearCart,
+        loadCartFromPrestashop
       }}
     >
       {children}

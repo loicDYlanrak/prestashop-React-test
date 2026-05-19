@@ -32,7 +32,7 @@ export default function CategoryFilter({
   }, [data]);
 
   const getCategoryCount = (categoryId) => {
-    console.log(`Products :`, products);
+    // console.log(`Products :`, products);
     return products.filter(
       (p) => p.categoryId && p.categoryId.includes(categoryId),
     ).length;

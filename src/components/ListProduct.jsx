@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import {
-  useFetchAllProduits,
+  // useFetchAllProduits,
   fetchPrestashop,
 } from "../hooks/useFetchPrestashop.js";
 
@@ -8,26 +8,60 @@ export function ListProduct() {
   // const { loading, data, errors } = useFetchAllOrders('orders');
   // const { loading, data, errors } = useFetchAllCarriers('carriers');
   // const { loading, data, errors } = useFetchAllCustomers('customers');
-  const { loading, data, errors } = useFetchAllProduits("products");
+  // const { loading, data, errors } = useFetchAllProduits("products");
   // const { loading, data, errors } = useFetchAllCategories('categories');
 
   useEffect(() => {
     const fetchData = async () => {
-      const id_order = 87; // par exemple 
-      const responseStockMouvements = await fetchPrestashop("stock_movements", {
-        urlRest: `filter[id_order]=[${id_order}]`,
+      const id_customer = 105;
+      const responseCarts = await fetchPrestashop("carts", {
+        urlRest: `filter[id_customer]=[${id_customer}]`,
       });
-      const stockMvtData = responseStockMouvements.data?.stock_mvts?.stock_mvt;
-      const stockMvtArray = Array.isArray(stockMvtData)
-        ? stockMvtData
-        : stockMvtData
-          ? [stockMvtData]
+      const cartsData = responseCarts.data?.carts?.cart;
+      const cartsArray = Array.isArray(cartsData)
+        ? cartsData
+        : cartsData
+          ? [cartsData]
           : [];
+      const idsCarts = cartsArray.map((cart) => cart.id?.["#cdata"] || cart["@_id"]);
 
-      const idsStockMouvements = stockMvtArray.map(
-        (mvt) => mvt.id?.["#cdata"] || mvt["@_id"], 
-      );
-      console.log("IDs des mouvements de stock:", idsStockMouvements);
+      const idsCartWihtoutOrder = [];
+      for (const idCart of idsCarts) {
+        const responseOrders = await fetchPrestashop("orders", {
+          urlRest: `filter[id_cart]=[${idCart}]`,
+        });
+        const ordersData = responseOrders.data?.orders?.order;
+        const ordersArray = Array.isArray(ordersData)
+          ? ordersData
+          : ordersData
+            ? [ordersData]
+            : [];
+        if (ordersArray.length === 0) {
+          idsCartWihtoutOrder.push(idCart);
+        }
+      }
+
+      const lastCartIdWithoutOrder = idsCartWihtoutOrder[idsCartWihtoutOrder.length - 1];
+      const lastCartDetailsResponse = await fetchPrestashop(`carts/${lastCartIdWithoutOrder}`);
+      const lastCartDetails = lastCartDetailsResponse.data?.cart;
+
+      console.log("Détails du dernier panier sans commande:", lastCartDetails);
+
+      // const id_order = 87; // par exemple 
+      // const responseStockMouvements = await fetchPrestashop("stock_movements", {
+      //   urlRest: `filter[id_order]=[${id_order}]`,
+      // });
+      // const stockMvtData = responseStockMouvements.data?.stock_mvts?.stock_mvt;
+      // const stockMvtArray = Array.isArray(stockMvtData)
+      //   ? stockMvtData
+      //   : stockMvtData
+      //     ? [stockMvtData]
+      //     : [];
+
+      // const idsStockMouvements = stockMvtArray.map(
+      //   (mvt) => mvt.id?.["#cdata"] || mvt["@_id"], 
+      // );
+      // console.log("IDs des mouvements de stock:", idsStockMouvements);
       
       
       // const mouvementstockId = responseStockMouvements.data?.stock_mvt.id?.["#cdata"];
@@ -240,23 +274,23 @@ export function ListProduct() {
       // console.log("Stocks with combinations and options:", stocksOptions);
     };
     fetchData();
-  }, [data]);
+  }, []);
   return (
     <div>
-      {loading && <div>Chargement...</div>}
-      {errors && <div>Erreur: {errors.toString()}</div>}
+      {/* {loading && <div>Chargement...</div>} */}
+      {/* {errors && <div>Erreur: {errors.toString()}</div>} */}
 
-      {data && (
-        <ul>
-          {console.log("Donnéesfinaleeeeees :", data)}
+      {/* {data && ( */}
+        {/* <ul> */}
+          {/* {console.log("Donnéesfialeeeeees :", data)} */}
           {/* {console.log("data :", data.categories.category[0]['@_href'].replace("http://localhost/prestashop2/api/", ""))} */}
           {/* <p>Données reçues ({parsedData.products.product.length} categories)</p> */}
 
           {/* {parsedData.products.product.map((item, index) => (
                         <li key={index}>ID Produit : {item.id || index}</li>
                     ))} */}
-        </ul>
-      )}
+        {/* </ul */}
+      {/* )} */}
     </div>
   );
 }

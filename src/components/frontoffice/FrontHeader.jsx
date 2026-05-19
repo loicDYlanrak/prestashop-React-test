@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./FrontHeader.css";
@@ -7,8 +8,37 @@ import { useCart } from "../../context/CartContext";
 export default function FrontHeader() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [user, setUser] = useState(null);
+  const [isLoadingCart, setIsLoadingCart] = useState(false);
   const navigate = useNavigate();
-  const { cart } = useCart();
+  const { cart, loadCartFromPrestashop } = useCart();
+
+  // Charger l'utilisateur depuis localStorage au montage
+  useEffect(() => {
+    const storedUser =
+      localStorage.getItem("user") || sessionStorage.getItem("user");
+    if (storedUser) {
+      const parsedUser = JSON.parse(storedUser);
+      setUser(parsedUser);
+      // console.log("User loaded from storage: ", parsedUser);
+    }
+  }, []);
+
+  // Charger le panier quand l'utilisateur change
+  useEffect(() => {
+    if (user && user.id && !user.isAnonymous && loadCartFromPrestashop) {
+      // console.log("Effect triggered - Loading cart for user ID: ", user.id);
+      setIsLoadingCart(true);
+      loadCartFromPrestashop(user.id)
+        .then(() => {
+          // console.log("Cart loaded successfully");
+          setIsLoadingCart(false);
+        })
+        .catch((error) => {
+          console.error("Error loading cart:", error);
+          setIsLoadingCart(false);
+        });
+    }
+  }, [user, loadCartFromPrestashop]);
 
   useEffect(() => {
     const handleOpenModal = () => {
@@ -23,7 +53,7 @@ export default function FrontHeader() {
   }, []);
 
   const handleUserSelect = (userData) => {
-    setUser(userData);
+    // console.log("handleUserSelect called with: ", userData);
     setShowUserModal(false);
 
     if (userData.isAnonymous) {
@@ -31,25 +61,23 @@ export default function FrontHeader() {
         "user",
         JSON.stringify({ ...userData, isAnonymous: true }),
       );
+      localStorage.removeItem("user");
     } else {
       localStorage.setItem("user", JSON.stringify(userData));
+      sessionStorage.removeItem("user");
     }
+    
+    setUser(userData);
   };
 
   const handleLogout = () => {
+    // console.log("Logging out");
     setUser(null);
     localStorage.removeItem("user");
     sessionStorage.removeItem("user");
+    sessionStorage.removeItem("cart");
     navigate("/");
   };
-
-  useState(() => {
-    const storedUser =
-      localStorage.getItem("user") || sessionStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-  }, []);
 
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   return (
