@@ -25,6 +25,8 @@ export default function AdminOrdersDashboard() {
   const [loadingStockHistory, setLoadingStockHistory] = useState(false);
   const [productCombinations, setProductCombinations] = useState({});
   const [customersMap, setCustomersMap] = useState(new Map());
+  const [stockSearchQuery, setStockSearchQuery] = useState("");
+  const [showStockDropdown, setShowStockDropdown] = useState(false);
 
   // Statistiques
   const [stats, setStats] = useState({
@@ -67,6 +69,26 @@ export default function AdminOrdersDashboard() {
 
         const productsMap = new Map();
         const stockToProductMap = new Map();
+        const productsNamesMap = new Map();
+
+        const productsResponse = await fetchPrestashop("products", {
+          urlRest: "display=full&limit=1000",
+        });
+
+        if (
+          productsResponse.success &&
+          productsResponse.data?.products?.product
+        ) {
+          let products = productsResponse.data.products.product;
+          const productsArray = Array.isArray(products) ? products : [products];
+
+          productsArray.forEach((product) => {
+            const productId = product.id?.["#cdata"];
+            const productName =
+              product.name?.language?.["#cdata"] || `Produit #${productId}`;
+            productsNamesMap.set(productId, productName);
+          });
+        }
 
         // Créer un mapping des options (groupes d'attributs)
         const optionsMap = new Map();
@@ -179,11 +201,14 @@ export default function AdminOrdersDashboard() {
 
           const key = `${productId}_${attributeId}`;
           if (!productsMap.has(key)) {
+            const productName =
+              productsNamesMap.get(productId) || `Produit #${productId}`;
             productsMap.set(key, {
               productId,
               attributeId,
               quantity,
               stockId,
+              productName,
             });
           }
 
@@ -892,74 +917,141 @@ export default function AdminOrdersDashboard() {
         </p>
 
         <div className="stock-selector">
-          <div className="filter-group">
+          <div className="filter-group" style={{ position: "relative" }}>
             <label>Sélectionner un produit / déclinaison</label>
-            <select
-              value={
-                selectedProductForStock
-                  ? `${selectedProductForStock.productId}_${selectedProductForStock.attributeId}`
-                  : ""
-              }
-              onChange={(e) => handleProductForStockSelect(e.target.value)}
+            <input
+              type="text"
               className="product-stock-select"
-            >
-              <option value="">-- Choisir un produit --</option>
-              {productsList.map((product) => {
-                let productName = `Produit #${product.productId}`;
-                let displayName = productName;
-
-                // Chercher le nom du produit dans les commandes existantes
-                const orderWithProduct = allOrders.find((order) => {
-                  const associations = order.associations;
-                  if (associations?.order_rows?.order_row) {
-                    const rows = Array.isArray(
-                      associations.order_rows.order_row,
-                    )
-                      ? associations.order_rows.order_row
-                      : [associations.order_rows.order_row];
-                    return rows.some(
-                      (row) => row.product_id?.["#cdata"] === product.productId,
+              placeholder="Rechercher un produit..."
+              value={stockSearchQuery}
+              onChange={(e) => {
+                setStockSearchQuery(e.target.value);
+                setShowStockDropdown(true);
+                if (!e.target.value) {
+                  setSelectedProductForStock(null);
+                  setStockHistory([]);
+                }
+              }}
+              onFocus={() => setShowStockDropdown(true)}
+              onBlur={() => setTimeout(() => setShowStockDropdown(false), 150)}
+              autoComplete="off"
+            />
+            {showStockDropdown && (
+              <ul
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  zIndex: 100,
+                  background: "var(--bg-card, #fff)",
+                  border: "1px solid var(--border-color, #ddd)",
+                  borderRadius: "6px",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                  maxHeight: "260px",
+                  overflowY: "auto",
+                  margin: "4px 0 0",
+                  padding: 0,
+                  listStyle: "none",
+                }}
+              >
+                {productsList
+                  .filter((product) => {
+                    const baseName =
+                      product.productName || `Produit #${product.productId}`;
+                    const isCombination = product.attributeId !== "0";
+                    let displayName = baseName;
+                    if (
+                      isCombination &&
+                      productCombinations[product.attributeId]?.name
+                    ) {
+                      displayName = `${baseName} (${productCombinations[product.attributeId].name})`;
+                    }
+                    return displayName
+                      .toLowerCase()
+                      .includes(stockSearchQuery.toLowerCase());
+                  })
+                  .map((product) => {
+                    const baseName =
+                      product.productName || `Produit #${product.productId}`;
+                    const isCombination = product.attributeId !== "0";
+                    let displayName = baseName;
+                    if (
+                      isCombination &&
+                      productCombinations[product.attributeId]?.name
+                    ) {
+                      displayName = `${baseName} (${productCombinations[product.attributeId].name})`;
+                    }
+                    return (
+                      <li
+                        key={`${product.productId}_${product.attributeId}`}
+                        onMouseDown={() => {
+                          setStockSearchQuery(displayName);
+                          setShowStockDropdown(false);
+                          handleProductForStockSelect(
+                            `${product.productId}_${product.attributeId}`,
+                          );
+                        }}
+                        style={{
+                          padding: "10px 14px",
+                          cursor: "pointer",
+                          borderBottom:
+                            "1px solid var(--border-color, #f0f0f0)",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          fontSize: "0.875rem",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background =
+                            "var(--bg-hover, #f5f5f5)")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = "transparent")
+                        }
+                      >
+                        <span>{displayName}</span>
+                        <span
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "var(--text-muted, #888)",
+                            marginLeft: "12px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          Stock : {product.quantity}
+                        </span>
+                      </li>
                     );
+                  })}
+                {productsList.filter((product) => {
+                  const baseName =
+                    product.productName || `Produit #${product.productId}`;
+                  const isCombination = product.attributeId !== "0";
+                  let displayName = baseName;
+                  if (
+                    isCombination &&
+                    productCombinations[product.attributeId]?.name
+                  ) {
+                    displayName = `${baseName} (${productCombinations[product.attributeId].name})`;
                   }
-                  return false;
-                });
-
-                if (orderWithProduct?.associations?.order_rows?.order_row) {
-                  const rows = Array.isArray(
-                    orderWithProduct.associations.order_rows.order_row,
-                  )
-                    ? orderWithProduct.associations.order_rows.order_row
-                    : [orderWithProduct.associations.order_rows.order_row];
-
-                  const foundRow = rows.find(
-                    (row) => row.product_id?.["#cdata"] === product.productId,
-                  );
-                  if (foundRow?.product_name?.["#cdata"]) {
-                    productName = foundRow.product_name["#cdata"];
-                    displayName = productName;
-                  }
-                }
-
-                const isCombination = product.attributeId !== "0";
-                if (isCombination && productCombinations[product.attributeId]) {
-                  const combination = productCombinations[product.attributeId];
-                  if (combination.name && combination.name !== "") {
-                    displayName = `${productName} (${combination.name})`;
-                  } else if (combination.name) {
-                    displayName = `${productName} - ${combination.name}`;
-                  }
-                }
-
-                return (
-                  <option
-                    key={`${product.productId}_${product.attributeId}`}
-                    value={`${product.productId}_${product.attributeId}`}
+                  return displayName
+                    .toLowerCase()
+                    .includes(stockSearchQuery.toLowerCase());
+                }).length === 0 && (
+                  <li
+                    style={{
+                      padding: "12px 14px",
+                      color: "var(--text-muted, #888)",
+                      fontSize: "0.875rem",
+                      textAlign: "center",
+                    }}
                   >
-                    {displayName} - Stock: {product.quantity}
-                  </option>
-                );
-              })}
-            </select>
+                    Aucun produit trouvé
+                  </li>
+                )}
+              </ul>
+            )}
           </div>
         </div>
 
