@@ -27,11 +27,12 @@ export default function CategoryFilter({
         };
       })
       .filter(Boolean);
-
+      // console.log("Transformed categories:", transformed);
     setCategoriesData(transformed);
   }, [data]);
 
   const getCategoryCount = (categoryId) => {
+    console.log(`Products :`, products);
     return products.filter(
       (p) => p.categoryId && p.categoryId.includes(categoryId),
     ).length;

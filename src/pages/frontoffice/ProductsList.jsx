@@ -8,11 +8,12 @@ import CategoryFilter from "../../components/frontoffice/CategoryFilter";
 import "./ProductsList.css";
 
 export default function ProductsList() {
+  const itemsPerPage = 16;
   const { loading, data, errors } = useFetchAllProduits("products", {
-    restUrl: "limit=0,15",
+    urlRest: `limit=0,1000`,
   });
+  const [currentFilteredPage, setCurrentFilteredPage] = useState(1);
   const [products, setProducts] = useState([]);
-  const [filteredProducts, setFilteredProducts] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [categories, setCategories] = useState([]);
   const [processing, setProcessing] = useState(false);
@@ -118,8 +119,7 @@ export default function ProductsList() {
     } else if (diffDays >= -7 && diffDays < 0) {
       // console.log(`Produit NEW - sorti il y a ${Math.abs(diffDays)} jours`);
       return "NEW";
-    }
-    else if (diffDays < -7) {
+    } else if (diffDays < -7) {
       // console.log(`Produit ancien - sorti il y a ${Math.abs(diffDays)} jours`);
       return null;
     }
@@ -175,7 +175,7 @@ export default function ProductsList() {
       }
 
       // Construction de l'URL de l'image
-      let imageUrl = "https://via.placeholder.com/300x300?text=No+Image";
+      let imageUrl = "https://placehold.co/400?text=Product";
       const imagesData = productData.associations?.images?.image;
       if (imagesData) {
         const imageId = Array.isArray(imagesData)
@@ -225,8 +225,6 @@ export default function ProductsList() {
             (p) => p.active,
           );
           setProducts(activeBatchProducts);
-          setFilteredProducts(activeBatchProducts);
-
           const uniqueCategories = [
             ...new Set(
               activeBatchProducts
@@ -256,21 +254,39 @@ export default function ProductsList() {
       );
     }
 
-    // Filtre par recherche dans le nom
+    // Filtre par recherche
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim();
       filtered = filtered.filter((p) => p.name.toLowerCase().includes(term));
     }
 
-    // Filtre par intervalle de prix
+    // Filtre par prix
     filtered = filtered.filter(
       (p) =>
         p.price >= (priceRange.min || minPrice) &&
         p.price <= (priceRange.max || maxPrice),
     );
 
-    return filtered;
-  }, [selectedCategory, products, searchTerm, priceRange, minPrice, maxPrice]);
+    // Appliquer la pagination sur les résultats filtrés
+    const startIndex = (currentFilteredPage - 1) * itemsPerPage;
+    const paginatedFiltered = filtered.slice(
+      startIndex,
+      startIndex + itemsPerPage,
+    );
+
+    return {
+      totalFiltered: filtered.length,
+      paginatedProducts: paginatedFiltered,
+    };
+  }, [
+    selectedCategory,
+    products,
+    searchTerm,
+    priceRange,
+    minPrice,
+    maxPrice,
+    currentFilteredPage,
+  ]);
 
   const resetFilters = () => {
     setSearchTerm("");
@@ -278,10 +294,17 @@ export default function ProductsList() {
     setPriceRange({ min: minPrice, max: maxPrice });
   };
 
-  // Mise à jour des produits filtrés uniquement quand nécessaire
+  const [displayedProducts, setDisplayedProducts] = useState([]);
+  const [totalFilteredCount, setTotalFilteredCount] = useState(0);
+
   useEffect(() => {
-    setFilteredProducts(memoizedFilteredProducts);
+    setDisplayedProducts(memoizedFilteredProducts.paginatedProducts);
+    setTotalFilteredCount(memoizedFilteredProducts.totalFiltered);
   }, [memoizedFilteredProducts]);
+
+  useEffect(() => {
+  setCurrentFilteredPage(1);
+}, [selectedCategory, searchTerm, priceRange]);
 
   // États de chargement améliorés
   if (loading || processing) {
@@ -384,16 +407,68 @@ export default function ProductsList() {
       />
 
       <div className="products-grid">
-        {filteredProducts.length === 0 ? (
+        {displayedProducts.length === 0 ? (
           <div className="no-products">
             <p>Aucun produit trouvé dans cette catégorie</p>
           </div>
         ) : (
-          filteredProducts.map((product) => (
+          displayedProducts.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))
         )}
       </div>
+      {/* Ajouter juste avant la fermeture de </div> du products-page */}
+      {totalFilteredCount > 0 && (
+        <div className="pagination">
+          <button
+            onClick={() => setCurrentFilteredPage((prev) => prev - 1)}
+            disabled={currentFilteredPage === 1}
+          >
+            Précédent
+          </button>
+
+          <div className="page-numbers">
+            {[...Array(Math.ceil(totalFilteredCount / itemsPerPage))].map(
+              (_, index) => {
+                const pageNum = index + 1;
+                if (
+                  pageNum === 1 ||
+                  pageNum === Math.ceil(totalFilteredCount / itemsPerPage) ||
+                  (pageNum >= currentFilteredPage - 2 && pageNum <= currentFilteredPage + 2)
+                ) {
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentFilteredPage(pageNum)}
+                      className={currentFilteredPage === pageNum ? "active" : ""}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                } else if (
+                  (pageNum === currentFilteredPage - 3 && currentFilteredPage > 4) ||
+                  (pageNum === currentFilteredPage + 3 &&
+                    currentFilteredPage < Math.ceil(totalFilteredCount / itemsPerPage) - 3)
+                ) {
+                  return <span key={pageNum}>...</span>;
+                }
+                return null;
+              },
+            )}
+          </div>
+
+          <button
+            onClick={() => setCurrentFilteredPage((prev) => prev + 1)}
+            disabled={currentFilteredPage === Math.ceil(totalFilteredCount / itemsPerPage)}
+          >
+            Suivant
+          </button>
+
+          <span className="page-info">
+            Page {currentFilteredPage} sur {Math.ceil(totalFilteredCount / itemsPerPage)}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

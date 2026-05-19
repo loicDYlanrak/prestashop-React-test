@@ -513,7 +513,7 @@ export default function ProductDetail() {
       imageUrl:
         images.length > 0
           ? images[0].url
-          : "https://via.placeholder.com/600x600?text=No+Image",
+          : "https://placehold.co/400?text=Product",
       images: images,
       reference: productData.reference?.["#cdata"] || "",
       quantity: productQuantity,
