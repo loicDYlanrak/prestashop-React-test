@@ -37,25 +37,25 @@ const getCombinationKey = (productRef, attributeName, attributeValue) => {
  * Robuste aux formats mal formatés et retourne 0 en cas d'erreur
  */
 const parseDate = (dateStr) => {
-  if (!dateStr || typeof dateStr !== 'string') return 0;
-  
+  if (!dateStr || typeof dateStr !== "string") return 0;
+
   const parts = dateStr.trim().split("/");
   if (parts.length !== 3) return 0;
-  
+
   const day = parseInt(parts[0], 10);
   const month = parseInt(parts[1], 10);
   const year = parseInt(parts[2], 10);
-  
+
   // Valider que les valeurs sont des nombres valides
   if (isNaN(day) || isNaN(month) || isNaN(year)) return 0;
-  
+
   // Créer la date au format ISO avec padding
-  const monthStr = String(month).padStart(2, '0');
-  const dayStr = String(day).padStart(2, '0');
-  
+  const monthStr = String(month).padStart(2, "0");
+  const dayStr = String(day).padStart(2, "0");
+
   const date = new Date(`${year}-${monthStr}-${dayStr}T00:00:00Z`);
   const timestamp = date.getTime();
-  
+
   // Vérifier que la date est valide (pas NaN)
   return isNaN(timestamp) ? 0 : timestamp;
 };
@@ -111,6 +111,27 @@ async function parallelLimit(items, limit, asyncFn) {
     }
   }
   return Promise.all(results);
+}
+
+/**
+ * Comme parallelLimit, mais garantit que les résultats respectent
+ * l'ordre d'entrée ET que l'item N est traité APRÈS l'item N-1.
+ * Chaque nouvelle tâche attend que la précédente soit terminée avant de démarrer.
+ */
+async function parallelLimitOrdered(items, limit, asyncFn) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await asyncFn(items[index]);
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(limit, items.length) }, worker);
+  await Promise.all(workers);
+  return results;
 }
 
 /**
@@ -279,7 +300,7 @@ export async function applyOrderStateChanges(options = {}) {
 
   // Traitement parallèle des livraisons avec limite de 5
   if (ordersToDeliver.length > 0) {
-    const deliverResults = await parallelLimit(
+    const deliverResults = await parallelLimitOrdered(
       ordersToDeliver,
       9,
       async (orderData) => {
@@ -973,7 +994,12 @@ export async function updateStocks(productStocks, options = {}) {
 
     if (!productInfo) {
       for (const stock of stocks) {
-        results.push({ productRef, stock, error: "Produit non trouvé", success: false });
+        results.push({
+          productRef,
+          stock,
+          error: "Produit non trouvé",
+          success: false,
+        });
       }
       continue;
     }
@@ -1015,77 +1041,83 @@ export async function updateStocks(productStocks, options = {}) {
     });
   }
 
-  const fetchResults = await parallelLimit(
-    fetchTasks,
-    6,
-    async (fetchTask) => {
-      try {
-        const urlRest = `filter[id_product]=[${fetchTask.productInfo.id}]`;
-        
-        // Premier appel : récupérer la liste des IDs de stock_availables
-        const response = await fetchPrestashop("stock_availables", { urlRest });
-        
-        if (!response.success || !response.data?.stock_availables?.stock_available) {
-          return {
-            productRef: fetchTask.productRef,
-            stocks: fetchTask.stocks,
-            stockDetails: new Map(),
-            error: "Impossible de récupérer les stocks",
-          };
-        }
+  const fetchResults = await parallelLimit(fetchTasks, 6, async (fetchTask) => {
+    try {
+      const urlRest = `filter[id_product]=[${fetchTask.productInfo.id}]`;
 
-        // Récupérer la liste des IDs
-        let stockList = response.data.stock_availables.stock_available;
-        if (!Array.isArray(stockList)) {
-          stockList = [stockList];
-        }
+      // Premier appel : récupérer la liste des IDs de stock_availables
+      const response = await fetchPrestashop("stock_availables", { urlRest });
 
-        // Deuxième étape : Pour chaque stock, récupérer les détails complets
-        const stockDetails = new Map();
-        
-        await parallelLimit(stockList, 5, async (stockItem) => {
-          try {
-            const stockId = stockItem["@_id"];
-            if (!stockId) return;
-            
-            // Fetch les détails complets du stock
-            const detailResponse = await fetchPrestashop(`stock_availables/${stockId}`);
-            
-            if (detailResponse.success && detailResponse.data?.stock_available) {
-              let stockData = detailResponse.data.stock_available;
-              
-              // Extraire les informations
-              let idProduct = stockData.id_product?.["#cdata"] || stockData.id_product;
-              let idAttribute = stockData.id_product_attribute?.["#cdata"] || stockData.id_product_attribute || "0";
-              let quantity = stockData.quantity?.["#cdata"] || stockData.quantity || 0;
-              
-              const key = `${idProduct}|${idAttribute}`;
-              stockDetails.set(key, {
-                id: stockId,
-                quantity: quantity
-              });
-            }
-          } catch (error) {
-            console.error(`Erreur récupération détail stock :`, error);
-          }
-        });
-
-        return {
-          productRef: fetchTask.productRef,
-          stocks: fetchTask.stocks,
-          stockDetails,
-          success: true,
-        };
-      } catch (error) {
+      if (
+        !response.success ||
+        !response.data?.stock_availables?.stock_available
+      ) {
         return {
           productRef: fetchTask.productRef,
           stocks: fetchTask.stocks,
           stockDetails: new Map(),
-          error: error.message,
+          error: "Impossible de récupérer les stocks",
         };
       }
-    },
-  );
+
+      // Récupérer la liste des IDs
+      let stockList = response.data.stock_availables.stock_available;
+      if (!Array.isArray(stockList)) {
+        stockList = [stockList];
+      }
+
+      // Deuxième étape : Pour chaque stock, récupérer les détails complets
+      const stockDetails = new Map();
+
+      await parallelLimit(stockList, 5, async (stockItem) => {
+        try {
+          const stockId = stockItem["@_id"];
+          if (!stockId) return;
+
+          // Fetch les détails complets du stock
+          const detailResponse = await fetchPrestashop(
+            `stock_availables/${stockId}`,
+          );
+
+          if (detailResponse.success && detailResponse.data?.stock_available) {
+            let stockData = detailResponse.data.stock_available;
+
+            // Extraire les informations
+            let idProduct =
+              stockData.id_product?.["#cdata"] || stockData.id_product;
+            let idAttribute =
+              stockData.id_product_attribute?.["#cdata"] ||
+              stockData.id_product_attribute ||
+              "0";
+            let quantity =
+              stockData.quantity?.["#cdata"] || stockData.quantity || 0;
+
+            const key = `${idProduct}|${idAttribute}`;
+            stockDetails.set(key, {
+              id: stockId,
+              quantity: quantity,
+            });
+          }
+        } catch (error) {
+          console.error(`Erreur récupération détail stock :`, error);
+        }
+      });
+
+      return {
+        productRef: fetchTask.productRef,
+        stocks: fetchTask.stocks,
+        stockDetails,
+        success: true,
+      };
+    } catch (error) {
+      return {
+        productRef: fetchTask.productRef,
+        stocks: fetchTask.stocks,
+        stockDetails: new Map(),
+        error: error.message,
+      };
+    }
+  });
 
   // Traiter les résultats et préparer les mises à jour
   for (const fetchResult of fetchResults) {
@@ -1103,13 +1135,13 @@ export async function updateStocks(productStocks, options = {}) {
 
     for (const stockItem of fetchResult.stocks) {
       const { stock, combinationId, productInfo } = stockItem;
-      
+
       // Construire la clé pour trouver le stock
       let combinationIdValue = "0";
       if (combinationId) {
         combinationIdValue = combinationId["#cdata"] || combinationId;
       }
-      
+
       const stockKey = `${productInfo.id}|${combinationIdValue}`;
       const stockData = fetchResult.stockDetails.get(stockKey);
 
@@ -1341,11 +1373,11 @@ export async function importAddresses(
           id_warehouse: "0",
           id_country: "8",
           id_state: "0",
-          alias: addressObj.alias,
+          alias: " ",
           company: "",
           lastname:
-            addressObj.customer.nom?.split(" ").slice(1).join(" ") || "Unknown",
-          firstname: addressObj.customer.nom?.split(" ")[0] || "Client",
+            addressObj.customer.nom?.split("Client").slice(1).join(" ") || "Unknown",
+          firstname: addressObj.customer.nom?.split("Client")[0] || "Client",
           vat_number: "",
           address1: addressObj.customer.adresse || "Adresse par défaut",
           address2: "",
@@ -1389,7 +1421,9 @@ export async function importCarts(cartsData, options = {}) {
   const cartsToProcess = [];
   const cartsToUpdateDate = [];
   // console.log("Donnees des paniers à traiter :", cartsData);
-  const sortedCartsData = [...cartsData].sort((a, b) => parseDate(a.date) - parseDate(b.date));
+  const sortedCartsData = [...cartsData].sort(
+    (a, b) => parseDate(a.date) - parseDate(b.date),
+  );
   // console.log("Donnees des paniers triées par date :", sortedCartsData);
   for (let i = 0; i < sortedCartsData.length; i++) {
     const cart = sortedCartsData[i];
@@ -1459,7 +1493,7 @@ export async function importCarts(cartsData, options = {}) {
 
           cartRows.push({
             id_product: productInfo.id.toString(),
-            id_product_attribute: attributeId?.["#cdata"],
+            id_product_attribute: attributeId?.["#cdata"] || 0,
             id_address_delivery: cartObj.addressId?.["#cdata"],
             id_customization: "0",
             quantity: item.quantity.toString(),
@@ -1626,7 +1660,9 @@ export async function importOrders(ordersData, options = {}) {
   let ordersToUpdateDate = [];
 
   // console.log("Données brutes pour importOrders:", ordersData);
-  const sortedOrdersData = [...ordersData].sort((a, b) => parseDate(a.date) - parseDate(b.date));
+  const sortedOrdersData = [...ordersData].sort(
+    (a, b) => parseDate(a.date) - parseDate(b.date),
+  );
 
   // console.log("Donnees triees pour importOrders:", sortedOrdersData);
 
@@ -1720,7 +1756,7 @@ export async function importOrders(ordersData, options = {}) {
   }
 
   // Traitement parallèle avec limite de 7 requêtes simultanées (orders sont très lourds)
-  const orderCreateResults = await parallelLimit(
+  const orderCreateResults = await parallelLimitOrdered(
     ordersToProcess,
     7,
     async (orderObj) => {
@@ -1812,7 +1848,10 @@ export async function importOrders(ordersData, options = {}) {
         const orderId = response?.order?.id;
 
         if (orderId) {
-          const formattedDate = formatDateWithTime(orderObj.order.date, "12:00:57");
+          const formattedDate = formatDateWithTime(
+            orderObj.order.date,
+            "12:00:57",
+          );
           const orderIdValue = orderId?.["#cdata"];
           const etatOriginal = orderObj.order.etat;
 
@@ -1834,11 +1873,15 @@ export async function importOrders(ordersData, options = {}) {
 
           let cancelResult = null;
           if (etatOriginal && etatOriginal.toLowerCase() === "annulé") {
-            cancelResult = await cancelOrder(orderIdValue, orderIdValue, options);
+            cancelResult = await cancelOrder(
+              orderIdValue,
+              orderIdValue,
+              options,
+            );
             if (!cancelResult.success) {
               console.error(
                 `Erreur lors de l'annulation immédiate de la commande ${orderIdValue}:`,
-                cancelResult.error
+                cancelResult.error,
               );
             }
           }
@@ -1915,6 +1958,7 @@ export async function importOrders(ordersData, options = {}) {
 // ==================== FONCTION PRINCIPALE D'IMPORT ====================
 
 export async function runFullImport(
+  importer,
   parsedData,
   callbacks = {},
   apiOptions = {},
@@ -2006,13 +2050,17 @@ export async function runFullImport(
     if (onStepComplete) onStepComplete("file2", results.file2);
 
     // ==================== ZIP ====================
-    if (onProgress) onProgress("Traitement des images...", 70);
+    if (importer == false) {
+      if (onProgress) onProgress("Traitement des images...", 70);
 
-    if (parsedData.zip.images) {
-      results.zip.images = await uploadProductImages(parsedData.zip.images);
+      if (parsedData?.zip?.images) {
+        results.zip.images = await uploadProductImages(parsedData.zip.images);
+      }
+
+      if (onStepComplete) onStepComplete("zip", results.zip);
+    } else {
+      console.log("Pas d importation d image ")
     }
-
-    if (onStepComplete) onStepComplete("zip", results.zip);
 
     // ==================== FILE 3 ====================
     if (onProgress)

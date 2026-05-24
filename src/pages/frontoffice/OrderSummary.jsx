@@ -3,8 +3,22 @@ import { useEffect, useState } from "react";
 import { fetchPrestashop } from "../../hooks/useFetchPrestashop";
 import { Link } from "react-router-dom";
 import "./OrderSummary.css";
+import OrderDuplicatePage from "../../components/frontoffice/OrderDuplicatePage";
 
 export default function OrderSummary() {
+  const [form, setForm] = useState({ nombre: 0, order: null });
+  const [showDuplicate, setShowDuplicate] = useState(false);
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setShowDuplicate(true);
+    console.log("Données soumises :", form);
+  };
+
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -53,7 +67,6 @@ export default function OrderSummary() {
           ),
         );
 
-        // Récupérer les status de chaque commande
         const ordersWithStatus = await Promise.all(
           ordersDetails.map(async (orderDetail) => {
             const orderData = orderDetail.data?.order;
@@ -212,10 +225,32 @@ export default function OrderSummary() {
                     {parseFloat(totalPaid || 0).toFixed(2)} €
                   </span>
                 </div>
+
+                <div className="order-total">
+                  <form onSubmit={handleSubmit}>
+                    <input type="hidden" value={(form.order = orderRows)} />
+                    <input
+                      name="nombre"
+                      value={form.nombre}
+                      onChange={handleChange}
+                      placeholder="nombre"
+                    />
+                    <button type="submit">Dupliquer</button>
+                  </form>
+                </div>
               </div>
             </div>
           );
         })}
+      </div>
+
+      <div className="order-summary">
+        {showDuplicate && (
+          <div>
+            <div>Resume des commandes </div>
+            <OrderDuplicatePage ordersRows={form.order} nombre={form.nombre} />
+          </div>
+        )}
       </div>
 
       <div className="order-actions">

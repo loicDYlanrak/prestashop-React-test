@@ -206,3 +206,14 @@ dans tous les tableau ajouter un limiteur avec limit pour eviter le chargement t
 charger le dernier panier de l utilisateur qui n est pas encore transformer en commande
 arranger les fonctions dans la page ajouter stock pour utiliser post stock_mvts
 stocker le panier de l utilisateur non connecter dans session 
+
+import asina case rehef cocher dia ne pas importer zany 
+
+ne pas importer les images 
+
+mijery etat de mes commandes en tant que client dit asiana bouton creer nouvelle commande otrany hoe dupliquer le commande
+dia misy champ anakiray hoe par defaut 1 dupliquer firy fois ilay quantite produit anatinle commande 
+dia rehef mivalider dia mandalo ecran anakiray miteny hoe ao daholo ve sa misy tsy ao ny stock dia , tsy afaka valideko rehef misy tsy ampy 
+tonga dia livre 
+
+verifier la quantite de stock   

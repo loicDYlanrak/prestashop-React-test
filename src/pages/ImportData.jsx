@@ -12,10 +12,23 @@ export default function ImportData() {
   const [file1, setFile1] = useState(null);
   const [file2, setFile2] = useState(null);
   const [file3, setFile3] = useState(null);
+  const [importer, setImporter] = useState(true);
   const [zipFile, setZipFile] = useState(null);
+
+  const handleOnChange = () => {
+    if (importer == true) {
+      setImporter(false)
+      console.log("importer",importer)
+    } else {
+       setImporter(true)
+      console.log("importer",importer)
+    }
+   
+  }
 
   // États pour l'import
   const [importing, setImporting] = useState(false);
+  
   const [result, setResult] = useState(null);
 
   // Refs pour les inputs
@@ -26,7 +39,7 @@ export default function ImportData() {
 
   const handleImport = async () => {
     // Vérifier que tous les fichiers sont présents
-    if (!file1 || !file2 || !file3 || !zipFile) {
+    if (!file1 || !file2 || !file3) {
       setResult({
         success: false,
         message: "Veuillez sélectionner les 3 fichiers CSV et le fichier ZIP",
@@ -42,13 +55,15 @@ export default function ImportData() {
     formData.append("fichier1", file1);
     formData.append("fichier2", file2);
     formData.append("fichier3", file3);
-    formData.append("images_zip", zipFile);
-
+    if (zipFile) {
+      formData.append("images_zip", zipFile);
+    }
+    formData.append("import", importer)
     try {
       const parsedData = await processAllFiles(file1, file2, file3, zipFile);
 
       if (parsedData.global_success) {
-        const importResults = await runFullImport(parsedData, {
+        const importResults = await runFullImport(importer , parsedData, {
           onProgress: (message, percent) => {
             console.log(`[${percent}%] ${message}`);
           },
@@ -80,8 +95,8 @@ export default function ImportData() {
               adresses: parsedData.file3.addresses,
             },
             images: {
-              total_images: parsedData.zip.total_images,
-              produits_avec_images: parsedData.zip.product_with_images,
+              total_images: parsedData?.zip?.total_images,
+              produits_avec_images: parsedData?.zip?.product_with_images,
             },
           },
         });
@@ -122,7 +137,7 @@ export default function ImportData() {
   };
 
   // Vérifier si tous les fichiers sont chargés
-  const allFilesLoaded = file1 && file2 && file3 && zipFile;
+  const allFilesLoaded = file1 && file2 && file3;
 
   return (
     <div className="ie-page">
@@ -186,6 +201,10 @@ export default function ImportData() {
                 inputRef={fileRef3}
                 onFileRemove={() => setResult(null)}
               />
+            </div>
+            <div className="form-group">
+              <label htmlFor="CaseACocher">Cocher pour ne pas importer d image</label>
+              <input type="checkbox" name="importer" id="importer" onChange={handleOnChange} />
             </div>
           </div>
         </div>

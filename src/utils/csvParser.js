@@ -290,7 +290,10 @@ export const parseFile3Customers = (csvText) => {
   for (let idx = 0; idx < data.length; idx++) {
     const row = data[idx];
     const lineNumber = rawData[idx]?.lineNumber || idx + 2;
-    const nom = row.nom?.trim();
+    let nom = row.nom?.trim();
+    if (nom.includes("Client")) {
+      nom = nom.split("client")[0].trim()
+    }
     const email = row.email?.trim();
     const pwd = row.pwd?.trim();
     const adresse = row.adresse?.trim();
@@ -302,34 +305,61 @@ export const parseFile3Customers = (csvText) => {
       throw new Error(`Ligne ${lineNumber} (colonne "date") - Fichier 3 - Format de date invalide pour le client "${email}" : ${date}. Le format attendu est DD/MM/YYYY`);
     }
     
-    if (adresse) addresses.add(adresse);
+    let adresses2 = null;
+    if (adresse) {
+      if (adresse.includes(",")) {
+        const adresse1 = adresse.split(",")
+        addresses.add(adresse);
+        adresses2= adresse1[0];
+      } else {
+        addresses.add(adresse);
+        adresses2 = adresse
+      }
+    
+    }
     
     if (email && !customers.has(email)) {
       customers.set(email, {
         nom: nom,
         email: email,
         mot_de_passe: pwd,
-        adresse: adresse
+        adresse: adresses2
       });
     }
     
     const cartItems = parseCartString(achat);
     
+    // Vérifier les quantités négatives
     for (const item of cartItems) {
       if (item.quantity < 0) {
         throw new Error(`Ligne ${lineNumber} (colonne "achat") - Fichier 3 - Quantité négative dans le panier du client "${email}" pour la référence "${item.reference}"`);
       }
     }
     
+    const consolidatedCart = new Map();
+    
+    for (const item of cartItems) {
+      const cartKey = `${item.reference}|${item.attribute || ''}`;
+      
+      if (consolidatedCart.has(cartKey)) {
+        const existing = consolidatedCart.get(cartKey);
+        existing.quantity += item.quantity;
+      } else {
+        consolidatedCart.set(cartKey, {
+          product_reference: item.reference,
+          attribute_name: item.attribute,
+          quantity: item.quantity
+        });
+      }
+    }
+    
+    const consolidatedCartArray = Array.from(consolidatedCart.values());
+    
     const cartData = {
       client_nom: nom,
       client_email: email,
       date: date,
-      panier: cartItems.map(item => ({
-        product_reference: item.reference,
-        attribute_name: item.attribute,
-        quantity: item.quantity
-      }))
+      panier: consolidatedCartArray
     };
     
     carts.push(cartData);
@@ -340,11 +370,7 @@ export const parseFile3Customers = (csvText) => {
         client_email: email,
         date: date,
         etat: etat,
-        panier: cartItems.map(item => ({
-          product_reference: item.reference,
-          attribute_name: item.attribute,
-          quantity: item.quantity
-        }))
+        panier: consolidatedCartArray
       });
     }
   }
@@ -444,12 +470,13 @@ export const processAllFiles = async (file1, file2, file3, zipFile) => {
     results.file3 = parseFile3Customers(file3Text);
     
     // Traiter le ZIP
-    results.zip = await parseZipImages(zipFile);
+    if (zipFile) {
+      results.zip = await parseZipImages(zipFile);
+    }
     
     results.global_success = results.file1.success && 
                             results.file2.success && 
-                            results.file3.success && 
-                            results.zip.success;
+                            results.file3.success;
                             
   } catch (error) {
     console.error("Erreur lors du traitement:", error);

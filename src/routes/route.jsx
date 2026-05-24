@@ -1,49 +1,23 @@
-import { createBrowserRouter } from 'react-router-dom';
-import {ListProduct} from '../components/ListProduct';
-import {AddProduct} from '../components/AddProduct';
-import {AddCategorie} from '../components/AddCategorie';
-import Home from '../pages/Home';
-import { SearchProduct } from '../components/SearchProduct';
-import { DeleteCategorie } from '../components/DeleteCategorie';
-import { AddCustomer } from '../components/AddCustomer';
-import { DeleteCustomer } from '../components/DeleteCustomer';
+import { createBrowserRouter } from "react-router-dom";
 
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <Home />, 
+    element: <div>Page simple </div>,
     children: [
       {
         path: "",
         element: <h1>Page d&apos;accueil</h1>,
       },
       {
-        path: "products",
-        element: <ListProduct />,
-      },
-      {
-        path: "addcategories",
-        element: <AddCategorie />,
-      },
-      {
-        path: "addproducts",
-        element: <AddProduct />,
-      },
-      {
-        path: "addcustomers",
-        element: <AddCustomer />
-      },
-      {
-        path: "searchproducts",
-        element: <SearchProduct />,
-      },
-      {
-        path: "deletecategories",
-        element: <DeleteCategorie />
-      },
-      {
-        path: "deletecustomers",
-        element: <DeleteCustomer />
+        path: "/admin",
+        element: <div>Admin page</div>,
+        children: [
+          {
+            path: "",
+            element: <h1>Page d&apos;admin</h1>,
+          },
+        ],
       },
     ],
   },
