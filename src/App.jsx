@@ -33,6 +33,7 @@ import AdminOrdersDashboard from "./pages/AdminOrdersDashboard";
 import OrderSummaryPage from "./pages/frontoffice/OrderSummaryPage";
 import AdminStatsDashboard from './pages/AdminStatsDashboard'
 import TaxManager from "./pages/TaxManager";
+import OptionManager from "./pages/OptionManager";
 
 function ErrorFallback({ error, resetErrorBoundary }) {
   return (
@@ -88,6 +89,7 @@ function App() {
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="categories" element={<Categories />} />
                 <Route path="taxes" element={<TaxManager/> }/>
+                <Route path="options" element={<OptionManager/> } />
                 <Route path="products" element={<Products />} />
                 <Route path="customers" element={<Customers />} />
                 <Route path="import" element={<Import />} />

@@ -1,9 +1,5 @@
-/**
- * Marque une commande comme livrée
- * @param {number|string} orderId - L'ID de la commande à livrer
- * @param {string} apiUrl - L'URL de l'API (optionnelle, utilise la constante par défaut)
- * @returns {Promise<{success: boolean, message: string, data?: any}>}
- */
+import { updateResource } from "../hooks/useMutationPrestashop";
+
 export const deliverOrderById = async (orderId) => {
   const  apiUrl = "http://localhost/prestashop2/module/orderapi/changeState"
     try {
@@ -31,6 +27,32 @@ export const deliverOrderById = async (orderId) => {
     return {
       success: false,
       message: error.message || "Impossible de livrer la commande. Veuillez réessayer.",
+      error: error
+    };
+  }
+};
+
+export const cancelOrderById = async (orderId) => {
+  try {
+    const response = await updateResource("order", orderId, {
+      id: orderId,
+      current_state: "6", // ID du statut "Annulé"
+    });
+
+    if (response) {
+      return {
+        success: true,
+        message: `Commande ${orderId} annulée avec succès`,
+        data: response
+      };
+    } else {
+      throw new Error("Erreur lors de l'annulation de la commande");
+    }
+  } catch (error) {
+    console.error("Erreur lors de l'annulation:", error);
+    return {
+      success: false,
+      message: error.message || "Impossible d'annuler la commande. Veuillez réessayer.",
       error: error
     };
   }

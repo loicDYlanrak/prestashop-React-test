@@ -251,8 +251,17 @@ creer fonction getTaxeRule(id_taxe_rule)
 creer fonction getTaxeValue(id_product) retourne l object
 (assigner un produit a une taxe)
 
+creer fonction getProductOptions(id_product_options)
+creer fonction getProductOptionValues(id_product_option_values)
+
+exporter la fontion pour annule le order 
+verifiers tous les fonctions pour tous les gets si il retourne dans l object l id ou pas 
+
 page et crud de options 
-page et crud de options_values 
+page et crud de option_values 
+
+creer fonction getOptionValues(id_product_options)
+creer fonction pour getProductIdByCategory("")
 
 page et crud de products 
 ajouter bouton dupliquer porduts , avec page de resumer et de validation apres

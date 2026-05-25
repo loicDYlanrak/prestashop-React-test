@@ -826,6 +826,152 @@ export async function getTaxeValue(idProduct) {
   }
 }
 
+export async function getProductOptions(idProductOptions) {
+  try {
+    const response = await fetchPrestashop(`product_options/${idProductOptions}`);
+    if (!response.success || !response.data?.product_option) {
+      return {
+        success: false,
+        error: `Option de produit ${idProductOptions} non trouvée`,
+        data: null,
+      };
+    }
+    const option = response.data.product_option;
+    let optionName = "";
+    if (option.name) {
+      if (option.name.language) {
+        optionName = option.name?.language?.["#cdata"] || option?.name?.language;
+      } else {
+        optionName = option?.name?.["#cdata"] || option?.name;
+      }
+    }
+    let publicName = "";
+    if (option.public_name) {
+      if (option.public_name.language) {
+        publicName = option.public_name.language?.["#cdata"] || option.public_name.language;
+      } else {
+        publicName = option.public_name?.["#cdata"] || option.public_name;
+      }
+    }
+    const isColorGroup = parseInt(option.is_color_group?.["#cdata"] || option.is_color_group || "0");
+    const groupType = option.group_type?.["#cdata"] || option.group_type || "select";
+    const optionData = {
+      is_color_group: isColorGroup,
+      group_type: groupType,
+      name: optionName.trim(),
+      public_name: publicName.trim() || optionName.trim(),
+    };
+    return {
+      success: true,
+      data: optionData,
+      originalData: option,
+      optionId: option.id?.["#cdata"] || option.id,
+    };
+  } catch (error) {
+    console.error(`Erreur getProductOptions ${idProductOptions}:`, error);
+    return {
+      success: false,
+      error: error.message,
+      data: null,
+    };
+  }
+}
+
+export async function getProductOptionValues(idProductOptionValues) {
+  try {
+    const response = await fetchPrestashop(`product_option_values/${idProductOptionValues}`);
+    if (!response.success || !response.data?.product_option_value) {
+      return {
+        success: false,
+        error: `Valeur d'option de produit ${idProductOptionValues} non trouvée`,
+        data: null,
+      };
+    }
+    const optionValue = response.data.product_option_value;
+    const idAttributeGroup = optionValue.id_attribute_group?.["#cdata"] || optionValue.id_attribute_group;
+    let valueName = "";
+    if (optionValue.name) {
+      if (optionValue.name.language) {
+        valueName = optionValue.name.language?.["#cdata"] || optionValue.name.language;
+      } else {
+        valueName = optionValue.name?.["#cdata"] || optionValue.name;
+      }
+    }
+    const optionValueData = {
+      id_attribute_group: idAttributeGroup ? idAttributeGroup.toString() : "",
+      name: valueName.trim()
+    };
+    return {
+      success: true,
+      data: optionValueData,
+      originalData: optionValue,
+      optionValueId: optionValue?.id?.["#cdata"] || optionValue.id,
+      position: parseInt(optionValue.position?.["#cdata"] || optionValue.position || "0"),
+    };
+    
+  } catch (error) {
+    console.error(`Erreur getProductOptionValues ${idProductOptionValues}:`, error);
+    return {
+      success: false,
+      error: error.message,
+      data: null,
+    };
+  }
+}
+
+export async function getOptionValues(idProductOptions) {
+  try {
+    const optionResponse = await fetchPrestashop(`product_options/${idProductOptions}`);
+    if (!optionResponse.success || !optionResponse.data?.product_option) {
+      return {
+        success: false,
+        error: `Option de produit ${idProductOptions} non trouvée`,
+        data: null,
+      };
+    }
+    const option = optionResponse.data.product_option;
+    const productOptionValues = option.associations?.product_option_values?.product_option_value;
+    if (!productOptionValues) {
+      return {
+        success: true,
+        data: [],
+        message: "Aucune valeur d'option pour cette option",
+      };
+    }
+    const optionValuesArray = Array.isArray(productOptionValues) ? productOptionValues : [productOptionValues];
+    const optionValuesDetails = await Promise.all(
+      optionValuesArray.map(async (optionValueRef) => {
+        const optionValueId = optionValueRef?.id?.["#cdata"] || optionValueRef.id;
+        if (!optionValueId) return null;
+        const optionValueResult = await getProductOptionValues(optionValueId);
+        if (optionValueResult.success && optionValueResult.data) {
+          return {
+            id: optionValueId,
+            ...optionValueResult.data,
+            position: optionValueResult.position,
+          };
+        }
+        return null;
+      })
+    );
+    const validOptionValues = optionValuesDetails.filter(value => value !== null);
+    validOptionValues.sort((a, b) => (a.position || 0) - (b.position || 0));
+    return {
+      success: true,
+      data: validOptionValues,
+      total: validOptionValues.length,
+      optionId: idProductOptions,
+    };
+  } catch (error) {
+    console.error(`Erreur getOptionValues ${idProductOptions}:`, error);
+    return {
+      success: false,
+      error: error.message,
+      data: null,
+    };
+  }
+}
+
 export function useFetchPrestashop(url, options = {}) {
   const apiKey = "2LA1668U53GC9T35AIT5Y3P7E8CKG7LL";
   const baseUrl = "http://localhost/prestashop2/api";

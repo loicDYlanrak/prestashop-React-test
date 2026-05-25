@@ -48,8 +48,8 @@ export function ListProduct() {
 
       console.log("Détails du dernier panier sans commande:", lastCartDetails);
 
-      const taxesProducts = await getTaxeValue("1727")
-      console.log("taxesProducts:", taxesProducts)
+      // const taxesProducts = await getTaxeValue("1727")
+      // console.log(taxesProducts)
 
       // const id_order = 87; // par exemple 
       // const responseStockMouvements = await fetchPrestashop("stock_movements", {
