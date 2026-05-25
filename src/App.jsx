@@ -8,7 +8,6 @@ import FrontLayout from "./components/frontoffice/FrontLayout";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Categories from "./pages/Categories";
-import Customers from "./pages/Customers";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -34,6 +33,7 @@ import OrderSummaryPage from "./pages/frontoffice/OrderSummaryPage";
 import AdminStatsDashboard from './pages/AdminStatsDashboard'
 import TaxManager from "./pages/TaxManager";
 import OptionManager from "./pages/OptionManager";
+import CustomerAddressManager from "./pages/CustomerAddressManager";
 
 function ErrorFallback({ error, resetErrorBoundary }) {
   return (
@@ -91,7 +91,7 @@ function App() {
                 <Route path="taxes" element={<TaxManager/> }/>
                 <Route path="options" element={<OptionManager/> } />
                 <Route path="products" element={<Products />} />
-                <Route path="customers" element={<Customers />} />
+                <Route path="customers" element={<CustomerAddressManager />} />
                 <Route path="import" element={<Import />} />
                 <Route path="export" element={<Export />} />
                 <Route path="stock" element={<Stock />} />

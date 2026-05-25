@@ -1189,6 +1189,189 @@ export async function getOptionValues(idProductOptions) {
   }
 }
 
+export async function getCustomer(idCustomer, options = {}) {
+  try {
+    const response = await fetchPrestashop(`customers/${idCustomer}`, options);
+
+    if (!response.success || !response.data?.customer) {
+      return {
+        success: false,
+        error: "Client non trouvé",
+        data: null,
+      };
+    }
+
+    const customer = response.data.customer;
+    const firstname = customer.firstname?.["#cdata"] || customer.firstname || "";
+    const lastname = customer.lastname?.["#cdata"] || customer.lastname || "";
+    const email = customer.email?.["#cdata"] || customer.email || "";
+    const passwd = customer.passwd?.["#cdata"] || customer.passwd || "azerty123";
+    const active = customer.active?.["#cdata"] || customer.active || "1";
+    const idLang = customer.id_lang?.["#cdata"] || customer.id_lang || "1";
+    const idShop = customer.id_shop?.["#cdata"] || customer.id_shop || "1";
+
+    const customerData = {
+      id: customer.id?.["#cdata"] || customer.id,
+      firstname: firstname,
+      lastname: lastname,
+      email: email,
+      passwd: passwd,
+      active: active,
+      id_lang: idLang,
+      id_shop: idShop,
+    };
+
+    return {
+      success: true,
+      data: customerData,
+      originalData: customer,
+      customerId: customer.id?.["#cdata"] || customer.id,
+    };
+  } catch (error) {
+    console.error(`Erreur getCustomer ${idCustomer}:`, error);
+    return {
+      success: false,
+      error: error.message,
+      data: null,
+    };
+  }
+}
+
+export async function getAddress(idAddress, options = {}) {
+  try {
+    const response = await fetchPrestashop(`addresses/${idAddress}`, options);
+
+    if (!response.success || !response.data?.address) {
+      return {
+        success: false,
+        error: "Adresse non trouvée",
+        data: null,
+      };
+    }
+
+    const address = response.data.address;
+
+    const idCustomer = address.id_customer?.["#cdata"] || address.id_customer;
+    const idCountry = address.id_country?.["#cdata"] || address.id_country || "8";
+    const idState = address.id_state?.["#cdata"] || address.id_state || "0";
+    const alias = " ";
+    const company = "";
+    const lastname = address.lastname?.["#cdata"] || address.lastname || "Unknown";
+    const firstname = address.firstname?.["#cdata"] || address.firstname || "Client";
+    const vatNumber = "";
+    const address1 = address.address1?.["#cdata"] || address.address1 || "Adresse par défaut";
+    const address2 = "";
+    const postcode = address.postcode?.["#cdata"] || address.postcode || "10000";
+    const city = address.city?.["#cdata"] || address.city || "Ville";
+    const other = "";
+    const phone = "";
+    const phoneMobile = "";
+
+    const addressData = {
+      id: address.id?.["#cdata"] || address.id,
+      id_customer: idCustomer,
+      id_manufacturer: "0",
+      id_supplier: "0",
+      id_warehouse: "0",
+      id_country: idCountry,
+      id_state: idState,
+      alias: alias,
+      company: company,
+      lastname: lastname,
+      firstname: firstname,
+      vat_number: vatNumber,
+      address1: address1,
+      address2: address2,
+      postcode: postcode,
+      city: city,
+      other: other,
+      phone: phone,
+      phone_mobile: phoneMobile,
+    };
+    return {
+      success: true,
+      data: addressData,
+      originalData: address,
+      addressId: address.id?.["#cdata"] || address.id,
+    };
+  } catch (error) {
+    console.error(`Erreur getAddress ${idAddress}:`, error);
+    return {
+      success: false,
+      error: error.message,
+      data: null,
+    };
+  }
+}
+
+export async function getAddresses(idCustomer, options = {}) {
+  try {
+    const customerResponse = await getCustomer(idCustomer, options);
+
+    if (!customerResponse.success || !customerResponse.data) {
+      return {
+        success: false,
+        error: `Client ${idCustomer} non trouvé`,
+        data: null,
+        addresses: [],
+      };
+    }
+
+    const filter = `&filter[id_customer]=${idCustomer}`;
+    const response = await fetchPrestashop(`addresses`, {
+      ...options,
+      urlRest: filter,
+    });
+
+    if (!response.success) {
+      return {
+        success: false,
+        error: "Erreur lors de la récupération des adresses",
+        data: null,
+        addresses: [],
+      };
+    }
+    // console.log("response:", response)
+    let addressesList = [];
+    if (response.data?.addresses?.address) {
+      let addresses = response.data.addresses.address;
+      
+      if (!Array.isArray(addresses)) {
+        addresses = [addresses];
+      }
+      // console.log("addresses:", addresses)
+      for (const addr of addresses) {
+        const addressId = addr.id?.["#cdata"]|| addr?.["@_id"] || addr.id;
+        if (addressId) {
+          // console.log("addressId:", addressId)
+          const addressDetail = await getAddress(addressId, options);
+          // console.log("addressDetail:", addressDetail)
+          if (addressDetail.success && addressDetail.data) {
+            addressesList.push(addressDetail.data);
+          }
+        }
+      }
+    }
+    return {
+      success: true,
+      data: {
+        customer: customerResponse.data,
+        addresses: addressesList,
+        total_addresses: addressesList.length,
+      },
+      customerId: idCustomer,
+    };
+  } catch (error) {
+    console.error(`Erreur getAddresses pour le client ${idCustomer}:`, error);
+    return {
+      success: false,
+      error: error.message,
+      data: null,
+      addresses: [],
+    };
+  }
+}
+
 export function useFetchPrestashop(url, options = {}) {
   const apiKey = "2LA1668U53GC9T35AIT5Y3P7E8CKG7LL";
   const baseUrl = "http://localhost/prestashop2/api";

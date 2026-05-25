@@ -278,6 +278,11 @@ le panier se recharge meme lorsque on quitte la page
 creer une fonction pour gerer les stock_availables 
 une produit peut avoir plusieur stock_availables 
 
+creer fonction pour getCustomer(id_customer)
+creer fonction pour getAddresse(id_addresse)
+creer fonction pour getAddresses(id_customer)
+retourne toutes les addresses associes a ce customers 
+
 page et crud de customers 
 page et crud de addresses
 

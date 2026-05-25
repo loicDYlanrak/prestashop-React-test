@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import {
   // useFetchAllProduits,
   fetchPrestashop,
+  getAddresses,
   getStockByProduct,
 } from "../hooks/useFetchPrestashop.js";
 
@@ -49,6 +50,10 @@ export function ListProduct() {
       // console.log("Détails du dernier panier sans commande:", lastCartDetails);
       const stock = await getStockByProduct("1727")
       console.log("stock:", stock)
+
+      const addresses = await getAddresses("3")
+      console.log("addresses:", addresses)
+
       // const taxesProducts = await getTaxeValue("1727")
       // console.log(taxesProducts)
 
