@@ -264,9 +264,14 @@ creer fonction getOptionValues(id_product_options)
 creer fonction pour getProductIdByCategory("")
 
 page et crud de products 
-ajouter bouton dupliquer porduts , avec page de resumer et de validation apres
+ajouter bouton dupliquer products , avec page de resumer et de validation apres
 
-page et curd de customers 
+creer une fonction pour gerer les stock_availables 
+une produit peut avoir plusieur stock_availables 
+
+creer une fonction qui retourne la quantite de stock available pour chaque declinaison 
+
+page et crud de customers 
 page et crud de addresses
 
 fonction pour verifier si un id_product a une remise 

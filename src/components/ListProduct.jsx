@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import {
   // useFetchAllProduits,
   fetchPrestashop,
-  getTaxeValue,
+  getStockByProduct,
 } from "../hooks/useFetchPrestashop.js";
 
 export function ListProduct() {
@@ -43,11 +43,12 @@ export function ListProduct() {
       }
 
       // const lastCartIdWithoutOrder = idsCartWihtoutOrder[idsCartWihtoutOrder.length - 1];
-      const lastCartDetailsResponse = await fetchPrestashop(`tax_rules/1`);
-      const lastCartDetails = lastCartDetailsResponse.data;
+      // const lastCartDetailsResponse = await fetchPrestashop(`tax_rules/1`);
+      // const lastCartDetails = lastCartDetailsResponse.data;
 
-      console.log("Détails du dernier panier sans commande:", lastCartDetails);
-
+      // console.log("Détails du dernier panier sans commande:", lastCartDetails);
+      const stock = await getStockByProduct("1727")
+      console.log("stock:", stock)
       // const taxesProducts = await getTaxeValue("1727")
       // console.log(taxesProducts)
 

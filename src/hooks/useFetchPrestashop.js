@@ -196,6 +196,92 @@ export async function getStockByStockAvailableId(stockAvailableId) {
   }
 }
 
+export async function getStockByProduct(productId) {
+  try {
+    const product = await getProduct(productId);
+    if (!product.success || !product.data) {
+      return {
+        success: false,
+        error: `Produit ${productId} non trouvé`,
+        data: null,
+      };
+    }
+    const stockAvailables = product.stockAvailables || [];
+    if (stockAvailables.length === 0) {
+      return {
+        success: true,
+        data: [],
+        message: "Aucun stock disponible pour ce produit",
+      };
+    }
+    const stocksWithDetails = await Promise.all(
+      stockAvailables.map(async (stockRef) => {
+        console.log("stockRef:", stockRef)
+        const stockId = stockRef.id?.["#cdata"] || stockRef.id;
+        const productAttributeId = stockRef.id_product_attribute?.["#cdata"] || stockRef.id_product_attribute || "0";
+        if (!stockId) return null;
+        const stockDetail = await getStockByStockAvailableId(stockId);
+        const stockInfo = {
+          stock_available_id: stockId,
+          product_id: productId,
+          product_attribute_id: productAttributeId,
+          quantity: stockDetail,
+          combination_id: productAttributeId !== "0" ? productAttributeId : null,
+        };
+        if (productAttributeId !== "0" && productAttributeId !== 0) {
+          try {
+            const optionNames = await getOptionAndValueNames(productAttributeId);
+            if (optionNames && optionNames.length > 0) {
+              stockInfo.combination_details = optionNames.map(opt => ({
+                group_id: opt.groupId,
+                group_name: opt.groupName,
+                option_value_id: opt.optionValueId,
+                option_value_name: opt.optionName,
+              }));
+            }
+            const combinationResponse = await fetchPrestashop(`combinations/${productAttributeId}`);
+            if (combinationResponse.success && combinationResponse.data?.combination) {
+              const combination = combinationResponse.data.combination;
+              stockInfo.combination_reference = combination.reference?.["#cdata"] || combination.reference || "";
+              stockInfo.combination_ean13 = combination.ean13?.["#cdata"] || combination.ean13 || "";
+              stockInfo.combination_upc = combination.upc?.["#cdata"] || combination.upc || "";
+              stockInfo.combination_wholesale_price = parseFloat(combination.wholesale_price?.["#cdata"] || combination.wholesale_price || 0);
+              stockInfo.combination_price = parseFloat(combination.price?.["#cdata"] || combination.price || 0);
+            }
+          } catch (error) {
+            console.error(`Erreur lors de la récupération des détails de la combinaison ${productAttributeId}:`, error);
+            stockInfo.combination_details = [];
+          }
+        }
+
+        return stockInfo;
+      })
+    );
+    const validStocks = stocksWithDetails.filter(stock => stock !== null);
+    const result = {
+      success: true,
+      data: {
+        product_id: productId,
+        product_name: product.data.name,
+        product_reference: product.data.reference,
+        product_type: product.data.product_type,
+        total_stock: validStocks.reduce((sum, stock) => sum + stock.quantity, 0),
+        stocks: validStocks,
+        main_stock: validStocks.find(stock => stock.product_attribute_id === "0" || stock.product_attribute_id === 0),
+        combinations_stock: validStocks.filter(stock => stock.product_attribute_id !== "0" && stock.product_attribute_id !== 0),
+      },
+    };
+    return result;
+  } catch (error) {
+    console.error(`Erreur getStockByProduct ${productId}:`, error);
+    return {
+      success: false,
+      error: error.message,
+      data: null,
+    };
+  }
+}
+
 export async function getOptionAndValueNames(combinationId) {
   try {
     const comboResponse = await fetchPrestashop(

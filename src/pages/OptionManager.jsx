@@ -490,7 +490,7 @@ export default function OptionManager() {
                     </td>
                   </tr>
                 ) : (
-                  getPaginatedData(optionValues, currentOptionValuePage).map((value) => { console.log("value:", value); return (
+                  getPaginatedData(optionValues, currentOptionValuePage).map((value) => { return (
                     <tr key={value.id}>
                       <td className="col-id">{value.id}</td>
                       <td>
