@@ -249,6 +249,9 @@ page et crud de options_values
 page et crud de products 
 ajouter bouton dupliquer porduts , avec page de resumer et de validation apres
 
+page et curd de customers 
+page et crud de addresses
+
 fonction pour verifier si un id_product a une remise 
 page pour gere les remises sur les produits 
 (assigner remises a produits)

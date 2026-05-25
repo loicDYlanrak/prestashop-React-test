@@ -41,9 +41,9 @@ export function ListProduct() {
         }
       }
 
-      const lastCartIdWithoutOrder = idsCartWihtoutOrder[idsCartWihtoutOrder.length - 1];
-      const lastCartDetailsResponse = await fetchPrestashop(`carts/${lastCartIdWithoutOrder}`);
-      const lastCartDetails = lastCartDetailsResponse.data?.cart;
+      // const lastCartIdWithoutOrder = idsCartWihtoutOrder[idsCartWihtoutOrder.length - 1];
+      const lastCartDetailsResponse = await fetchPrestashop(`products/1727`);
+      const lastCartDetails = lastCartDetailsResponse.data;
 
       console.log("Détails du dernier panier sans commande:", lastCartDetails);
 

@@ -503,14 +503,7 @@ export async function addOrder(orderData, options = {}) {
   return await addResource("order", finalOrderData, options);
 }
 
-/**
- * Convertit une commande en panier
- * Structure basée sur le format utilisé dans dataImporter.js (importCarts)
- * @param {Object} orderData - Données de la commande
- * @returns {Object} - Données du panier formatées pour PrestaShop
- */
 function convertOrderToCart(orderData) {
-  // Construire les lignes de panier à partir des order_rows
   const cartRows = [];
 
   if (orderData.associations?.order_rows?.order_row) {
@@ -529,7 +522,6 @@ function convertOrderToCart(orderData) {
     }
   }
 
-  // Structure du panier (identique à celle dans importCarts de dataImporter.js)
   const cartData = {
     id_address_delivery: orderData.id_address_delivery,
     id_address_invoice:
@@ -553,6 +545,69 @@ function convertOrderToCart(orderData) {
   };
 
   return cartData;
+}
+
+export async function addProduct(productData, options = {}) {
+  const languageId = options.languageId || 1;
+  let categoryId = null;
+  let categoryName = null;
+
+  if (productData.associations?.categories?.category) {
+    const categories = productData.associations.categories.category;
+    const firstCategory = Array.isArray(categories) ? categories[0] : categories;
+    categoryId = firstCategory?.id;
+  }
+  if (!categoryId && productData.category_name) {
+    categoryName = productData.category_name;
+  }
+
+  if (!categoryId && categoryName) {
+    try {
+      // console.log(`Catégorie non trouvée, création de la catégorie: ${categoryName}`);      
+      const categoryData = {
+        id_parent: 2,
+        id_shop_default: 1,
+        is_root_category: 0,
+        name: categoryName,
+        description: categoryName,
+        link_rewrite: categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+        active: 1,
+      };
+      const categoryResponse = await addResource("category", categoryData, {
+        ...options,
+        languageId,
+      });
+
+      categoryId = categoryResponse?.category?.id?.["#cdata"] || categoryResponse?.category?.id;
+
+      if (categoryId) {
+        console.log(`Catégorie créée avec succès, ID: ${categoryId}`);
+        if (!productData.associations) {
+          productData.associations = {};
+        }
+        if (!productData.associations.categories) {
+          productData.associations.categories = {};
+        }
+        productData.associations.categories.category = [{ id: categoryId }];        
+        productData.id_category_default = categoryId;
+      } else {
+        throw new Error("Impossible de récupérer l'ID de la catégorie créée");
+      }
+    } catch (error) {
+      throw new Error(`Erreur lors de la création de la catégorie "${categoryName}": ${error.message}`);
+    }
+  }
+  if (!categoryId) {
+    throw new Error("Catégorie non trouvée et aucun nom de catégorie fourni. Veuillez fournir un ID de catégorie valide ou un nom de catégorie (category_name)");
+  }
+  const cleanProductData = { ...productData };  
+  delete cleanProductData.category_name;
+  if (!cleanProductData.id_category_default) {
+    cleanProductData.id_category_default = categoryId;
+  }
+  return await addResource("product", cleanProductData, {
+    ...options
+  });
 }
 
 /**

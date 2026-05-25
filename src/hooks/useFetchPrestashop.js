@@ -217,6 +217,185 @@ export async function getOptionAndValueNames(combinationId) {
   }
 };
 
+export async function getCart(idCart, options = {}) {
+  try {
+    const response = await fetchPrestashop(`carts/${idCart}`, options);
+    if (!response.success || !response.data?.cart) {
+      return {
+        success: false,
+        error: "Panier non trouvé",
+        data: null
+      };
+    }
+    const cart = response.data.cart;
+    const idAddressDelivery = cart.id_address_delivery?.["#cdata"] || cart.id_address_delivery;
+    const idAddressInvoice = cart.id_address_invoice?.["#cdata"] || cart.id_address_invoice;
+    const idCurrency = cart.id_currency?.["#cdata"] || cart.id_currency || "1";
+    const idCustomer = cart.id_customer?.["#cdata"] || cart.id_customer;
+    const idLang = cart.id_lang?.["#cdata"] || cart.id_lang || "1";
+    const idShopGroup = cart.id_shop_group?.["#cdata"] || cart.id_shop_group || "1";
+    const idShop = cart.id_shop?.["#cdata"] || cart.id_shop || "1";
+    const idCarrier = cart.id_carrier?.["#cdata"] || cart.id_carrier || "1";
+    const recyclable = cart.recyclable?.["#cdata"] || cart.recyclable || "0";
+    const gift = cart.gift?.["#cdata"] || cart.gift || "0";
+    const giftMessage = "";
+    const mobileTheme = cart.mobile_theme?.["#cdata"] || cart.mobile_theme || "0";
+    const deliveryOption = cart.delivery_option?.["#cdata"] || cart.delivery_option || '{"8":"1,"}';
+    const allowSeperatedPackage = cart.allow_seperated_package?.["#cdata"] || cart.allow_seperated_package || "0";
+    const cartRows = [];
+    let cartRowsData = cart.associations?.cart_rows?.cart_row;
+    if (cartRowsData) {
+      if (!Array.isArray(cartRowsData)) {
+        cartRowsData = [cartRowsData];
+      }
+      for (const row of cartRowsData) {
+        cartRows.push({
+          id_product: (row.id_product?.["#cdata"] || row.id_product).toString(),
+          id_product_attribute: row.id_product_attribute?.["#cdata"] || row.id_product_attribute || "0",
+          id_address_delivery: row.id_address_delivery?.["#cdata"] || row.id_address_delivery || idAddressDelivery,
+          id_customization: "0",
+          quantity: (row.quantity?.["#cdata"] || row.quantity || "1").toString(),
+        });
+      }
+    }
+    const formattedCart = {
+      id_address_delivery: idAddressDelivery,
+      id_address_invoice: idAddressInvoice,
+      id_currency: idCurrency,
+      id_customer: idCustomer,
+      id_guest: "0",
+      id_lang: idLang,
+      id_shop_group: idShopGroup,
+      id_shop: idShop,
+      id_carrier: idCarrier,
+      recyclable: recyclable,
+      gift: gift,
+      gift_message: giftMessage,
+      mobile_theme: mobileTheme,
+      delivery_option: deliveryOption,
+      allow_seperated_package: allowSeperatedPackage,
+      associations: {
+        cart_rows: { cart_row: cartRows }
+      }
+    };
+    return {
+      success: true,
+      data: formattedCart,
+      originalData: cart,
+      cartId: idCart
+    };
+  } catch (error) {
+    console.error(`Erreur getCart ${idCart}:`, error);
+    return {
+      success: false,
+      error: error.message,
+      data: null
+    };
+  }
+}
+
+export async function getProduct(idProduct, options = {}) {
+  try {
+    const response = await fetchPrestashop(`products/${idProduct}`, options);
+    
+    if (!response.success || !response.data?.product) {
+      return {
+        success: false,
+        error: "Produit non trouvé",
+        data: null
+      };
+    }
+
+    const product = response.data.product;
+    
+    const id = product.id?.["#cdata"] || product.id;
+    const reference = product.reference?.["#cdata"] || product.reference || "";
+    const name = product.name?.language?.["#cdata"] || product.name?.language || product.name || "";
+    const description = product.description?.language?.["#cdata"] || product.description?.language || product.description || "";
+    const metaDescription = product.meta_description?.language?.["#cdata"] || product.meta_description?.language || "";
+    const metaKeywords = "";
+    const metaTitle = "";
+    const linkRewrite = product.link_rewrite?.language?.["#cdata"] || product.link_rewrite?.language || 
+      name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const price = parseFloat(product.price?.["#cdata"] || product.price || 0);
+    const wholesalePrice = parseFloat(product.wholesale_price?.["#cdata"] || product.wholesale_price || 0);
+    const active = product.active?.["#cdata"] || product.active || "1";
+    const idManufacturer = product.id_manufacturer?.["#cdata"] || product.id_manufacturer || "1";
+    const idSupplier = product.id_supplier?.["#cdata"] || product.id_supplier || "1";
+    const idCategoryDefault = product.id_category_default?.["#cdata"] || product.id_category_default;
+    const isNew = product.new?.["#cdata"] || product.new || "1";
+    const cacheDefaultAttribute = product.cache_default_attribute?.["#cdata"] || product.cache_default_attribute || "0";
+    const idDefaultCombination = product.id_default_combination?.["#cdata"] || product.id_default_combination || "0";
+    const type = product.type?.["#cdata"] || product.type || "1";
+    const idShopDefault = product.id_shop_default?.["#cdata"] || product.id_shop_default || "1";
+    const availableDate = product.available_date?.["#cdata"] || product.available_date || null;
+    const productType = product.product_type?.["#cdata"] || product.product_type || "standard";
+    const state = product.state?.["#cdata"] || product.state || "1";
+    const idTaxRulesGroup = product.id_tax_rules_group?.["#cdata"] || product.id_tax_rules_group;
+    const availableForOrder = product.available_for_order?.["#cdata"] || product.available_for_order || "1";
+    const showPrice = product.show_price?.["#cdata"] || product.show_price || "1";
+    
+    let categories = [];
+    const categoriesData = product.associations?.categories?.category;
+    
+    if (categoriesData) {
+      const categoriesArray = Array.isArray(categoriesData) ? categoriesData : [categoriesData];
+      categories = categoriesArray.map(cat => ({
+        id: cat.id?.["#cdata"] || cat.id
+      }));
+    }
+    
+    const formattedProduct = {
+      reference: reference,
+      name: name,
+      description: description || name,
+      meta_description: metaDescription || name,
+      meta_keywords: metaKeywords || "",
+      meta_title: metaTitle || "",
+      link_rewrite: linkRewrite,
+      price: price.toFixed(8),
+      wholesale_price: wholesalePrice.toFixed(8),
+      active: parseInt(active),
+      id_manufacturer: parseInt(idManufacturer),
+      id_supplier: parseInt(idSupplier),
+      id_category_default: idCategoryDefault ? parseInt(idCategoryDefault) : undefined,
+      new: parseInt(isNew),
+      cache_default_attribute: parseInt(cacheDefaultAttribute),
+      id_default_combination: parseInt(idDefaultCombination),
+      type: parseInt(type),
+      id_shop_default: parseInt(idShopDefault),
+      available_date: availableDate,
+      product_type: productType,
+      state: parseInt(state),
+      id_tax_rules_group: idTaxRulesGroup ? parseInt(idTaxRulesGroup) : undefined,
+      available_for_order: parseInt(availableForOrder),
+      show_price: parseInt(showPrice),
+      associations: categories.length > 0 ? {
+        categories: {
+          category: categories
+        }
+      } : undefined
+    };
+    
+    return {
+      success: true,
+      data: formattedProduct,
+      originalData: product,
+      productId: id,
+      combinations: product.associations?.combinations?.combination || [],
+      stockAvailables: product.associations?.stock_availables?.stock_available || []
+    };
+    
+  } catch (error) {
+    console.error(`Erreur getProduct ${idProduct}:`, error);
+    return {
+      success: false,
+      error: error.message,
+      data: null
+    };
+  }
+}
+
 export function useFetchPrestashop(url, options = {}) {
   const apiKey = "2LA1668U53GC9T35AIT5Y3P7E8CKG7LL";
   const baseUrl = "http://localhost/prestashop2/api";
