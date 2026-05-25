@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import {
   // useFetchAllProduits,
   fetchPrestashop,
+  getTaxeValue,
 } from "../hooks/useFetchPrestashop.js";
 
 export function ListProduct() {
@@ -42,10 +43,13 @@ export function ListProduct() {
       }
 
       // const lastCartIdWithoutOrder = idsCartWihtoutOrder[idsCartWihtoutOrder.length - 1];
-      const lastCartDetailsResponse = await fetchPrestashop(`products/1727`);
+      const lastCartDetailsResponse = await fetchPrestashop(`tax_rules/1`);
       const lastCartDetails = lastCartDetailsResponse.data;
 
       console.log("Détails du dernier panier sans commande:", lastCartDetails);
+
+      const taxesProducts = await getTaxeValue("1727")
+      console.log("taxesProducts:", taxesProducts)
 
       // const id_order = 87; // par exemple 
       // const responseStockMouvements = await fetchPrestashop("stock_movements", {

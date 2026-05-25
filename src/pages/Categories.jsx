@@ -1,86 +1,87 @@
 import { useState, useEffect } from "react";
 import "./Categories.css";
-import { useFetchAllCategories } from "../hooks/useFetchPrestashop.js";
-import { useDeleteCategory } from "../hooks/useDeletePrestashop.js";
+import { getCategory, getAllCategoriesId } from "../hooks/useFetchPrestashop.js";
+import { addResource, updateResource } from "../hooks/useMutationPrestashop.js";
 
 export default function Categories() {
-  const { loading, data, errors } = useFetchAllCategories("categories");
+  const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState([]);
+  const [errors, setErrors] = useState(null);
   const [search, setSearch] = useState("");
   const [searchDesc, setSearchDesc] = useState("");
   const [selected, setSelected] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editCategory, setEditCategory] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  
   const [form, setForm] = useState({
     name: "",
     description: "",
-    categorie_mere: "",
+    id_parent: "",
     position: "",
     active: true,
   });
 
-  useEffect(() => {
-    if (data && data.length > 0) {
-      const transformedCategories = data.map((item) => {
-        const categoryData = item.category;
-
-        // Extraire le nom (qui est dans language)
-        let name = "";
-        if (categoryData.name && categoryData.name.language) {
-          name = categoryData.name.language["#cdata"] || "";
+  const loadAllCategories = async () => {
+    setLoading(true);
+    setErrors(null);
+    
+    try {
+      const categoryIds = await getAllCategoriesId();
+      if (!categoryIds || categoryIds.length === 0) {
+        setCategories([]);
+        setLoading(false);
+        return;
+      }
+      const categoriesPromises = categoryIds.map(async (id) => {
+        const result = await getCategory(id);
+        if (result.success && result.data) {
+          return {
+            id: parseInt(id),
+            name: result.data.name,
+            description: result.data.description || "",
+            id_parent: result.data.id_parent === 0 ? null : result.data.id_parent,
+            nombres_produits: 0, 
+            position: parseInt(result.data.id_parent) || 0,
+            active: result.data.active === 1,
+            level_depth: 0,
+            is_root_category: result.data.is_root_category === 1,
+            date_add: null,
+            date_upd: null,
+          };
         }
-
-        // Extraire la description
-        let description = "";
-        if (categoryData.description && categoryData.description.language) {
-          // Enlever les balises HTML de la description
-          const rawDesc = categoryData.description.language["#cdata"] || "";
-          description = rawDesc.replace(/<[^>]*>/g, "").trim();
-        }
-
-        // Extraire l'ID parent
-        let parentId = null;
-        if (categoryData.id_parent) {
-          parentId = categoryData.id_parent["#cdata"]
-            ? parseInt(categoryData.id_parent["#cdata"])
-            : null;
-        }
-
-        // Compter le nombre de produits
-        let productCount = 0;
-        if (categoryData.nb_products_recursive) {
-          productCount =
-            parseInt(categoryData.nb_products_recursive["#cdata"]) || 0;
-          productCount < 0 ? (productCount *= -1) : productCount;
-        }
-
-        return {
-          id: parseInt(categoryData.id["#cdata"]),
-          name: name,
-          description: description,
-          categorie_mere: parentId,
-          nombres_produits: productCount,
-          position: parseInt(categoryData.position?.["#cdata"] || 0),
-          active: categoryData.active?.["#cdata"] === "1",
-          level_depth: parseInt(categoryData.level_depth?.["#cdata"] || 0),
-          is_root_category: categoryData.is_root_category?.["#cdata"] === "1",
-          date_add: categoryData.date_add?.["#cdata"],
-          date_upd: categoryData.date_upd?.["#cdata"],
-        };
+        return null;
       });
-
-      // Trier par position
-      const sortedCategories = transformedCategories.sort(
-        (a, b) => a.position - b.position,
-      );
+      
+      const results = await Promise.all(categoriesPromises);
+      const validCategories = results.filter(cat => cat !== null);
+      
+      const sortedCategories = validCategories.sort((a, b) => a.position - b.position);
       setCategories(sortedCategories);
+      
+    } catch (err) {
+      console.error("Erreur lors du chargement des catégories:", err);
+      setErrors({ message: err.message || "Erreur lors du chargement des catégories" });
+    } finally {
+      setLoading(false);
     }
-  }, [data]);
+  };
+
+  const refetch = () => {
+    loadAllCategories();
+  };
+
+  useEffect(() => {
+    loadAllCategories();
+  }, []);
 
   const filtered = categories.filter(
     (c) =>
       c.name.toLowerCase().includes(search.toLowerCase()) &&
-      (c.description || "").toLowerCase().includes(searchDesc.toLowerCase()),
+      (c.description || "").toLowerCase().includes(searchDesc.toLowerCase())
   );
 
   const getParentName = (parentId) => {
@@ -89,21 +90,176 @@ export default function Categories() {
     return parent ? parent.name : "-";
   };
 
-  const toggleActive = (id) => {
-    setCategories(
-      categories.map((c) => (c.id === id ? { ...c, active: !c.active } : c)),
-    );
+  const getParentOptions = () => {
+    const rootCategories = categories.filter(c => c.id_parent === null || c.id_parent === 2);
+    return rootCategories
+      .filter((c) => c.id !== editCategory?.id)
+      .map((c) => ({ id: c.id, name: c.name }));
   };
 
-  const toggleSelect = (id) => {
-    setSelected((sel) =>
-      sel.includes(id) ? sel.filter((s) => s !== id) : [...sel, id],
-    );
+  const generateLinkRewrite = (name) => {
+    return name
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
   };
 
-  const toggleAll = () => {
-    if (selected.length === filtered.length) setSelected([]);
-    else setSelected(filtered.map((c) => c.id));
+  const saveCategory = async () => {
+    if (!form.name.trim()) {
+      setActionError("Le nom de la catégorie est requis");
+      return;
+    }
+
+    setActionLoading(true);
+    setActionError(null);
+    setSuccessMessage(null);
+
+    try {
+      const linkRewrite = generateLinkRewrite(form.name);
+      
+      const categoryData = {
+        id_parent: form.id_parent ? parseInt(form.id_parent) : 2,
+        id_shop_default: 1,
+        is_root_category: form.id_parent ? 0 : 0,
+        name: form.name,
+        description: form.description || form.name,
+        link_rewrite: linkRewrite,
+        active: form.active ? 1 : 0,
+        position: form.position ? parseInt(form.position) : 0,
+      };
+
+      if (editCategory) {
+        categoryData.id = editCategory.id;
+        await updateResource("category", editCategory.id, categoryData);
+        setSuccessMessage(`Catégorie "${form.name}" modifiée avec succès`);
+      } else {
+        const response = await addResource("category", categoryData);
+        const newCategoryId = response?.category?.id?.["#cdata"] || response?.category?.id;
+        if (newCategoryId) {
+          setSuccessMessage(`Catégorie "${form.name}" créée avec succès (ID: ${newCategoryId})`);
+        } else {
+          setSuccessMessage(`Catégorie "${form.name}" créée avec succès`);
+        }
+      }
+
+      setShowModal(false);
+      resetForm();
+      setTimeout(() => {
+        loadAllCategories();
+      }, 1500);
+      
+    } catch (err) {
+      console.error("Erreur lors de la sauvegarde:", err);
+      setActionError(err.message || "Erreur lors de la sauvegarde de la catégorie");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const deleteCategory = async (id, name) => {
+    const hasChildren = categories.some((c) => c.id_parent === id);
+    if (hasChildren) {
+      alert("Impossible de supprimer cette catégorie car elle contient des sous-catégories.");
+      return;
+    }
+
+    if (!window.confirm(`Supprimer la catégorie "${name}" ?`)) return;
+
+    setDeleteLoading(true);
+    setActionError(null);
+    
+    try {
+      const { deleteResource } = await import("../hooks/useDeletePrestashop.js");
+      await deleteResource("categories", id);
+      
+      setSuccessMessage(`Catégorie "${name}" supprimée avec succès`);
+      await loadAllCategories();
+      
+    } catch (err) {
+      console.error("Erreur lors de la suppression:", err);
+      setActionError(err.message || "Erreur lors de la suppression de la catégorie");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const deleteSelectedCategories = async () => {
+    if (selected.length === 0) {
+      alert("Veuillez sélectionner au moins une catégorie");
+      return;
+    }
+
+    const categoriesToDelete = categories.filter(c => selected.includes(c.id));
+    const hasChildren = categoriesToDelete.some(c => 
+      categories.some(child => child.id_parent === c.id)
+    );
+    
+    if (hasChildren) {
+      alert("Impossible de supprimer certaines catégories car elles contiennent des sous-catégories");
+      return;
+    }
+
+    if (!window.confirm(`Supprimer ${selected.length} catégorie(s) ?`)) return;
+
+    setDeleteLoading(true);
+    setActionError(null);
+    
+    const { deleteResource } = await import("../hooks/useDeletePrestashop.js");
+    let deletedCount = 0;
+    let errorCount = 0;
+
+    for (const id of selected) {
+      try {
+        await deleteResource("category", id);
+        deletedCount++;
+      } catch (err) {
+        console.error(`Erreur suppression catégorie ${id}:`, err);
+        errorCount++;
+      }
+    }
+
+    setSelected([]);
+    setSuccessMessage(`Supprimées: ${deletedCount}, Erreurs: ${errorCount}`);
+    await loadAllCategories();
+    setDeleteLoading(false);
+  };
+
+  const toggleActive = async (id, currentActive, name) => {
+    try {
+      const categoryToUpdate = categories.find(c => c.id === id);
+      const newActiveState = !currentActive;
+      
+      const categoryData = {
+        id_parent: categoryToUpdate.id_parent || 2,
+        id_shop_default: 1,
+        is_root_category: 0,
+        name: categoryToUpdate.name,
+        description: categoryToUpdate.description || categoryToUpdate.name,
+        link_rewrite: generateLinkRewrite(categoryToUpdate.name),
+        active: newActiveState ? 1 : 0,
+        position: categoryToUpdate.position,
+      };
+
+      await updateResource("category", id, categoryData);
+      
+      setCategories(
+        categories.map((c) =>
+          c.id === id ? { ...c, active: newActiveState } : c
+        )
+      );
+      
+      setSuccessMessage(`Catégorie "${name}" ${newActiveState ? "activée" : "désactivée"}`);
+      
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 3000);
+      
+    } catch (err) {
+      console.error("Erreur lors du changement de statut:", err);
+      setActionError(err.message || "Erreur lors du changement de statut");
+    }
   };
 
   const openNew = () => {
@@ -111,10 +267,11 @@ export default function Categories() {
     setForm({
       name: "",
       description: "",
-      categorie_mere: "",
+      id_parent: "",
       position: categories.length + 1,
       active: true,
     });
+    setActionError(null);
     setShowModal(true);
   };
 
@@ -123,118 +280,44 @@ export default function Categories() {
     setForm({
       name: c.name,
       description: c.description || "",
-      categorie_mere: c.categorie_mere || "",
+      id_parent: c.id_parent || "",
       position: c.position,
       active: c.active,
     });
+    setActionError(null);
     setShowModal(true);
   };
 
-  const saveCategory = () => {
-    if (!form.name) return;
-
-    if (editCategory) {
-      setCategories(
-        categories.map((c) =>
-          c.id === editCategory.id
-            ? {
-                ...c,
-                name: form.name,
-                description: form.description,
-                categorie_mere: form.categorie_mere || null,
-                position: parseInt(form.position) || c.position,
-                active: form.active,
-              }
-            : c,
-        ),
-      );
-    } else {
-      const newId = Math.max(...categories.map((c) => c.id), 0) + 1;
-      setCategories([
-        ...categories,
-        {
-          id: newId,
-          name: form.name,
-          description: form.description,
-          categorie_mere: form.categorie_mere || null,
-          nombres_produits: 0,
-          position: parseInt(form.position) || categories.length + 1,
-          active: form.active,
-        },
-      ]);
-    }
-    setShowModal(false);
+  const resetForm = () => {
+    setForm({
+      name: "",
+      description: "",
+      id_parent: "",
+      position: "",
+      active: true,
+    });
+    setEditCategory(null);
+    setActionError(null);
   };
 
-  const deleteCategory = (id) => {
-    const hasChildren = categories.some((c) => c.categorie_mere === id);
-    if (hasChildren) {
-      alert(
-        "Impossible de supprimer cette catégorie car elle contient des sous-catégories.",
-      );
-      return;
-    }
-    if (window.confirm("Supprimer cette catégorie ?")) {
-      setCategories(categories.filter((c) => c.id !== id));
-    }
-  };
-
-  const {
-    deleteCategory: deleteApiCategory,
-    loading: deleteLoading,
-    error: deleteError,
-  } = useDeleteCategory();
-
-  const resetCategories = async () => {
-    // Trouver toutes les catégories avec ID >= 13
-    const categoriesToDelete = categories.filter((cat) => cat.id >= 13);
-
-    if (categoriesToDelete.length === 0) {
-      alert("Aucune catégorie avec un ID supérieur ou égal à 13 à supprimer.");
-      return;
-    }
-
-    // Confirmation
-    const confirmMessage =
-      `⚠️ RÉINITIALISATION DES CATÉGORIES ⚠️\n\n` +
-      `${categoriesToDelete.length} catégorie(s) avec ID >= 13 vont être supprimées :\n` +
-      categoriesToDelete.map((c) => `- ID ${c.id}: ${c.name}`).join("\n") +
-      `\n\nCette action est irréversible. Continuer ?`;
-
-    if (!window.confirm(confirmMessage)) return;
-
-    // Supprimer chaque catégorie
-    let deletedCount = 0;
-    let errorCount = 0;
-
-    for (const category of categoriesToDelete) {
-      try {
-        await deleteApiCategory(category.id);
-        deletedCount++;
-        console.log(`Catégorie ${category.id} (${category.name}) supprimée`);
-      } catch (err) {
-        console.error(`Erreur suppression catégorie ${category.id}:`, err);
-        errorCount++;
-      }
-    }
-
-    const remainingCategories = categories.filter((cat) => cat.id < 13);
-    setCategories(remainingCategories);
-
-    // Afficher le résultat
-    alert(
-      ` Réinitialisation terminée !\n\n` +
-        `Supprimées : ${deletedCount}\n` +
-        `Erreurs : ${errorCount}\n` +
-        `Catégories restantes : ${remainingCategories.length}`,
+  const toggleSelect = (id) => {
+    setSelected((sel) =>
+      sel.includes(id) ? sel.filter((s) => s !== id) : [...sel, id]
     );
   };
 
-  const parentOptions = categories
-    .filter((c) => c.id !== editCategory?.id)
-    .map((c) => ({ id: c.id, name: c.name }));
+  const toggleAll = () => {
+    if (selected.length === filtered.length) setSelected([]);
+    else setSelected(filtered.map((c) => c.id));
+  };
 
-  // Affichage du chargement
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
   if (loading) {
     return (
       <div className="categories-page">
@@ -246,7 +329,6 @@ export default function Categories() {
     );
   }
 
-  // Affichage des erreurs
   if (errors) {
     return (
       <div className="categories-page">
@@ -256,7 +338,7 @@ export default function Categories() {
             {errors.message || "Erreur inconnue"}
           </p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => loadAllCategories()}
             className="btn btn-primary"
           >
             Réessayer
@@ -275,15 +357,6 @@ export default function Categories() {
         <div className="page-header-row">
           <h1 className="page-title">Catégories</h1>
           <div style={{ display: "flex", gap: "10px" }}>
-            <button
-              className="btn btn-danger"
-              onClick={resetCategories}
-              disabled={deleteLoading}
-            >
-              {deleteLoading
-                ? "Suppression en cours..."
-                : "🔄 Réinitialiser catégories (ID ≥ 13)"}
-            </button>
             <button className="btn btn-primary" onClick={openNew}>
               <span>＋</span> Nouvelle catégorie
             </button>
@@ -291,14 +364,43 @@ export default function Categories() {
         </div>
       </div>
 
+      {/* Messages de statut */}
+      {successMessage && (
+        <div className="alert alert-success">
+          <span className="alert-icon">✓</span>
+          {successMessage}
+          <button className="alert-close" onClick={() => setSuccessMessage(null)}>×</button>
+        </div>
+      )}
+      
+      {actionError && (
+        <div className="alert alert-error">
+          <span className="alert-icon">⚠</span>
+          {actionError}
+          <button className="alert-close" onClick={() => setActionError(null)}>×</button>
+        </div>
+      )}
+
+      {/* Barre d'actions sélection */}
+      {selected.length > 0 && (
+        <div className="selection-bar">
+          <span className="selection-count">{selected.length} catégorie(s) sélectionnée(s)</span>
+          <button 
+            className="btn btn-danger btn-sm" 
+            onClick={deleteSelectedCategories}
+            disabled={deleteLoading}
+          >
+            🗑 Supprimer la sélection
+          </button>
+        </div>
+      )}
+
       <div className="panel">
         <div className="panel-header-row">
           <span className="panel-title">Catégories ({filtered.length})</span>
-          <div className="filter-bar">
-            <button className="btn btn-outline dropdown-btn">
-              Filtrer par statut <span>▾</span>
-            </button>
-          </div>
+          <button className="btn-refresh" onClick={refetch} disabled={loading}>
+            🔄
+          </button>
         </div>
 
         <div className="panel-body">
@@ -308,19 +410,16 @@ export default function Categories() {
                 <th className="col-check">
                   <input
                     type="checkbox"
-                    checked={
-                      selected.length === filtered.length && filtered.length > 0
-                    }
+                    checked={selected.length === filtered.length && filtered.length > 0}
                     onChange={toggleAll}
                   />
                 </th>
-                <th className="col-id">ID ▼</th>
+                <th className="col-id">ID</th>
                 <th>Nom</th>
                 <th>Description</th>
                 <th>Catégorie mère</th>
-                <th className="col-qty">Nb produits</th>
                 <th className="col-position">Position</th>
-                <th>Affichage</th>
+                <th>Statut</th>
                 <th className="col-actions">Actions</th>
               </tr>
               <tr className="filter-row">
@@ -342,45 +441,20 @@ export default function Categories() {
                     onChange={(e) => setSearchDesc(e.target.value)}
                   />
                 </th>
+                <th></th>
+                <th></th>
+                <th></th>
                 <th>
-                  <select className="filter-select">
-                    <option>Toutes</option>
-                    {parentOptions.map((opt) => (
-                      <option key={opt.id}>{opt.name}</option>
-                    ))}
-                  </select>
-                </th>
-                <th>
-                  <div className="filter-minmax">
-                    <input placeholder="Min" />
-                    <input placeholder="Max" />
-                  </div>
-                </th>
-                <th>
-                  <div className="filter-minmax">
-                    <input placeholder="Min" />
-                    <input placeholder="Max" />
-                  </div>
-                </th>
-                <th>
-                  <select className="filter-select">
-                    <option>Tous</option>
-                    <option>Actif</option>
-                    <option>Inactif</option>
-                  </select>
-                </th>
-                <th>
-                  <button className="btn btn-search">🔍 Rechercher</button>
+                  <button className="btn btn-search" onClick={() => {}}>
+                     Rechercher
+                  </button>
                 </th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan="9"
-                    style={{ textAlign: "center", padding: "40px" }}
-                  >
+                  <td colSpan="9" style={{ textAlign: "center", padding: "40px" }}>
                     Aucune catégorie trouvée
                   </td>
                 </tr>
@@ -400,15 +474,15 @@ export default function Categories() {
                     <td className="col-id">{c.id}</td>
                     <td className="category-name">{c.name}</td>
                     <td className="category-desc">{c.description || "-"}</td>
-                    <td>{getParentName(c.categorie_mere)}</td>
-                    <td className="col-qty">{c.nombres_produits}</td>
+                    <td>{getParentName(c.id_parent)}</td>
                     <td className="col-position">{c.position}</td>
                     <td>
                       <label className="toggle">
                         <input
                           type="checkbox"
                           checked={c.active}
-                          onChange={() => toggleActive(c.id)}
+                          onChange={() => toggleActive(c.id, c.active, c.name)}
+                          disabled={deleteLoading}
                         />
                         <span className="toggle-slider"></span>
                       </label>
@@ -419,15 +493,17 @@ export default function Categories() {
                           className="action-btn"
                           title="Modifier"
                           onClick={() => openEdit(c)}
+                          disabled={deleteLoading}
                         >
-                          ✏️
+                          Edit
                         </button>
                         <button
                           className="action-btn action-btn--more"
                           title="Supprimer"
-                          onClick={() => deleteCategory(c.id)}
+                          onClick={() => deleteCategory(c.id, c.name)}
+                          disabled={deleteLoading}
                         >
-                          🗑️
+                          Del
                         </button>
                       </div>
                     </td>
@@ -439,6 +515,7 @@ export default function Categories() {
         </div>
       </div>
 
+      {/* Modal de création/modification */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -448,7 +525,10 @@ export default function Categories() {
               </h2>
               <button
                 className="modal-close"
-                onClick={() => setShowModal(false)}
+                onClick={() => {
+                  setShowModal(false);
+                  resetForm();
+                }}
               >
                 ✕
               </button>
@@ -461,6 +541,11 @@ export default function Categories() {
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Nom de la catégorie"
                 />
+                {form.name && (
+                  <small className="form-hint">
+                    URL générée: {generateLinkRewrite(form.name)}
+                  </small>
+                )}
               </div>
               <div className="form-group">
                 <label>Description</label>
@@ -471,36 +556,21 @@ export default function Categories() {
                   }
                   placeholder="Description (optionnelle)"
                   rows="3"
-                  style={{
-                    padding: "8px 10px",
-                    border: "1px solid #d0d5df",
-                    borderRadius: "3px",
-                    fontFamily: "inherit",
-                    resize: "vertical",
-                  }}
                 />
               </div>
               <div className="form-group">
                 <label>Catégorie mère</label>
                 <select
-                  value={form.categorie_mere}
+                  value={form.id_parent}
                   onChange={(e) =>
                     setForm({
                       ...form,
-                      categorie_mere: e.target.value
-                        ? parseInt(e.target.value)
-                        : "",
+                      id_parent: e.target.value ? parseInt(e.target.value) : "",
                     })
                   }
-                  style={{
-                    padding: "8px 10px",
-                    border: "1px solid #d0d5df",
-                    borderRadius: "3px",
-                    background: "#fff",
-                  }}
                 >
                   <option value="">Aucune (catégorie racine)</option>
-                  {parentOptions.map((opt) => (
+                  {getParentOptions().map((opt) => (
                     <option key={opt.id} value={opt.id}>
                       {opt.name}
                     </option>
@@ -516,6 +586,7 @@ export default function Categories() {
                     onChange={(e) =>
                       setForm({ ...form, position: e.target.value })
                     }
+                    placeholder="Ordre d'affichage"
                   />
                 </div>
                 <div className="form-group">
@@ -525,12 +596,6 @@ export default function Categories() {
                     onChange={(e) =>
                       setForm({ ...form, active: e.target.value === "true" })
                     }
-                    style={{
-                      padding: "8px 10px",
-                      border: "1px solid #d0d5df",
-                      borderRadius: "3px",
-                      background: "#fff",
-                    }}
                   >
                     <option value="true">Actif</option>
                     <option value="false">Inactif</option>
@@ -541,12 +606,27 @@ export default function Categories() {
             <div className="modal-footer">
               <button
                 className="btn btn-outline"
-                onClick={() => setShowModal(false)}
+                onClick={() => {
+                  setShowModal(false);
+                  resetForm();
+                }}
+                disabled={actionLoading}
               >
                 Annuler
               </button>
-              <button className="btn btn-primary" onClick={saveCategory}>
-                Enregistrer
+              <button
+                className="btn btn-primary"
+                onClick={saveCategory}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <>
+                    <span className="spinner-small"></span>
+                    Enregistrement...
+                  </>
+                ) : (
+                  "Enregistrer"
+                )}
               </button>
             </div>
           </div>

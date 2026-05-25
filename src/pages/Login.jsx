@@ -9,6 +9,10 @@ export default function Login() {
   const [error, setError] = useState('')
   const { login } = useAuth()
   const navigate = useNavigate()
+
+  const handleChange = () => {
+    
+  }
   
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -36,6 +40,7 @@ export default function Login() {
               type="email"
               placeholder="admin@example.com"
               value={email}
+              onChange={handleChange}
               onClick={e => setEmail(e.target.value)}
               required
             />
@@ -46,6 +51,8 @@ export default function Login() {
               type="password"
               placeholder="••••••••"
               value={password}
+              onChange={handleChange}
+
               onClick={e => setPassword(e.target.value)}
               required
             />

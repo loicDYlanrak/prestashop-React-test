@@ -240,7 +240,15 @@ fonction pour ajouter un produit : si id_categorie n existe pas on le creer
 
 page et crud de categories 
 
-page et crud de taxes 
+page et crud de taxes :
+il y a taxes de base , ensuite il y a taxeRuleGroups(va dans product)
+il y a ensuite taxes rules
+
+creer fonction getTaxe(id_taxe)
+creer fonction getTaxeRuleGroup(id_tax_rules_group)
+creer fonction getTaxeRule(id_taxe_rule)
+
+creer fonction getTaxeValue(id_product) retourne l object
 (assigner un produit a une taxe)
 
 page et crud de options 
