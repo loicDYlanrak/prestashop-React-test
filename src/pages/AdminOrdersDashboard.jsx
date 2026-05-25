@@ -638,6 +638,7 @@ export default function AdminOrdersDashboard() {
           totalCount: 0,
           cancelledCount: 0,
           amount: 0,
+          amountHT: 0,
           orders: [],
         };
       }
@@ -647,10 +648,12 @@ export default function AdminOrdersDashboard() {
       if (isCancelled) {
         grouped[date].cancelledCount++;
       } else {
-        // Ajouter au CA uniquement si non annulée
         grouped[date].amount += parseFloat(
           order.total_paid_tax_incl?.["#cdata"] || 0,
         );
+        grouped[date].amountHT += parseFloat(
+          order.total_paid_tax_excl?.["#cdata"] || 0,
+        )
       }
 
       grouped[date].orders.push(order);
@@ -884,7 +887,8 @@ export default function AdminOrdersDashboard() {
                     )}
                   </span>
                 </div>
-                <div className="daily-amount">{formatPrice(day.amount)}</div>
+                <div className="daily-amount">TTC: {formatPrice(day.amount)}</div>
+                <div className="daily-amount-2">HT: {formatPrice(day.amountHT)}</div>
               </div>
             ))
           )}

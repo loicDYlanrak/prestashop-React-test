@@ -201,6 +201,11 @@
   font-weight: 700;
   color: #25b9d7;
 }
+.daily-amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: #6db0be;
+}
 
 /* Liste des commandes */
 .orders-list-section {
