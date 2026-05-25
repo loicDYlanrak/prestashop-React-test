@@ -75,6 +75,7 @@ export default function FrontHeader() {
     localStorage.removeItem("user");
     sessionStorage.removeItem("user");
     sessionStorage.removeItem("cart");
+    localStorage.removeItem("cart");
     navigate("/");
   };
 
