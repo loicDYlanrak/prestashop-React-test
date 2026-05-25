@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useFetch } from "./useFetch.js";
 import { useEffect, useState } from "react";
 import { parsePrestashopXML } from "../utils/ParserXml.js";
