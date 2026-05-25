@@ -6,22 +6,28 @@ import "./OrderSummary.css";
 import OrderDuplicatePage from "../../components/frontoffice/OrderDuplicatePage";
 
 export default function OrderSummary() {
-  const [form, setForm] = useState({ nombre: 0, order: null });
-  const [showDuplicate, setShowDuplicate] = useState(false);
-
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setShowDuplicate(true);
-    console.log("Données soumises :", form);
-  };
-
+  const [formData, setFormData] = useState({}); // État pour stocker les données de chaque commande
+  const [showDuplicateForOrder, setShowDuplicateForOrder] = useState(null); // Stocke l'ID de la commande à dupliquer
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const handleChange = (e, orderId) => {
+    setFormData({
+      ...formData,
+      [orderId]: {
+        ...formData[orderId],
+        nombre: e.target.value
+      }
+    });
+  };
+
+  const handleSubmit = (e, order) => {
+    e.preventDefault();
+    const orderId = order?.id?.["#cdata"];
+    setShowDuplicateForOrder(orderId); // Affiche le formulaire de duplication pour cette commande spécifique
+    console.log("Données soumises :", { order, nombre: formData[orderId]?.nombre || 1 });
+  };
 
   useEffect(() => {
     async function loadOrdersWithStatus() {
@@ -97,6 +103,15 @@ export default function OrderSummary() {
         );
 
         setOrders(ordersWithStatus);
+        
+        // Initialiser formData pour chaque commande
+        const initialFormData = {};
+        ordersWithStatus.forEach(order => {
+          const orderId = order?.id?.["#cdata"];
+          initialFormData[orderId] = { nombre: 1 };
+        });
+        setFormData(initialFormData);
+        
       } catch (err) {
         console.error("Failed to load orders", err);
         setError("Erreur lors du chargement des commandes");
@@ -124,6 +139,10 @@ export default function OrderSummary() {
       color: statusColor,
       border: `1px solid ${statusColor}`,
     };
+  };
+
+  const handleCloseDuplicate = () => {
+    setShowDuplicateForOrder(null);
   };
 
   if (loading) {
@@ -173,6 +192,9 @@ export default function OrderSummary() {
           if (orderRows && !Array.isArray(orderRows)) {
             orderRows = [orderRows];
           }
+          
+          const currentNombre = formData[orderId]?.nombre || 1;
+          
           return (
             <div key={orderId} className="order-card">
               <div className="order-header">
@@ -226,31 +248,38 @@ export default function OrderSummary() {
                   </span>
                 </div>
 
-                <div className="order-total">
-                  <form onSubmit={handleSubmit}>
-                    <input type="hidden" value={(form.order = orderRows)} />
+                <div className="order-actions-buttons">
+                  <form onSubmit={(e) => handleSubmit(e, order)} className="order-form">
                     <input
                       name="nombre"
-                      value={form.nombre}
-                      onChange={handleChange}
-                      placeholder="nombre"
+                      value={currentNombre}
+                      onChange={(e) => handleChange(e, orderId)}
+                      placeholder="Quantité"
+                      type="number"
+                      min="1"
                     />
-                    <button type="submit">Dupliquer</button>
+                    <button className="bouton" type="submit">Dupliquer</button>
                   </form>
                 </div>
               </div>
+              
+              {/* Afficher le composant de duplication uniquement pour la commande sélectionnée */}
+              {showDuplicateForOrder === orderId && (
+                <div className="duplicate-section">
+                  <button className="close-duplicate" onClick={handleCloseDuplicate}>
+                    ×
+                  </button>
+                  <div>Résumé des commandes dupliquées</div>
+                  <OrderDuplicatePage 
+                    order={order} 
+                    nombre={currentNombre}
+                    onComplete={handleCloseDuplicate}
+                  />
+                </div>
+              )}
             </div>
           );
         })}
-      </div>
-
-      <div className="order-summary">
-        {showDuplicate && (
-          <div>
-            <div>Resume des commandes </div>
-            <OrderDuplicatePage ordersRows={form.order} nombre={form.nombre} />
-          </div>
-        )}
       </div>
 
       <div className="order-actions">

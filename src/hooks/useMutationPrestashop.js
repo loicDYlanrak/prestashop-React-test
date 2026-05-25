@@ -468,6 +468,93 @@ export async function addResource(resourceType, resourceData, options = {}) {
   return parsedResponse;
 }
 
+export async function addOrder(orderData, options = {}) {
+  const hasValidCart =
+    orderData.id_cart &&
+    orderData.id_cart !== "0" &&
+    orderData.id_cart !== 0 &&
+    orderData.id_cart !== null &&
+    orderData.id_cart !== undefined;
+
+  let finalOrderData = { ...orderData };
+
+  if (!hasValidCart) {
+    console.log(
+      "Aucun id_cart valide trouvé, création d'un panier à partir de la commande...",
+    );
+    const cartData = convertOrderToCart(orderData);
+    const cartResponse = await addResource("cart", cartData, options);
+
+    let cartId = null;
+    if (cartResponse?.cart?.id) {
+      cartId = cartResponse.cart.id["#cdata"] || cartResponse.cart.id;
+    } else if (cartResponse?.cart?.id?.["#cdata"]) {
+      cartId = cartResponse.cart.id["#cdata"];
+    }
+
+    if (cartId) {
+      finalOrderData.id_cart = cartId;
+      console.log(`Panier créé avec succès, ID: ${cartId}`);
+    } else {
+      throw new Error("Impossible de créer le panier pour la commande");
+    }
+  }
+
+  return await addResource("order", finalOrderData, options);
+}
+
+/**
+ * Convertit une commande en panier
+ * Structure basée sur le format utilisé dans dataImporter.js (importCarts)
+ * @param {Object} orderData - Données de la commande
+ * @returns {Object} - Données du panier formatées pour PrestaShop
+ */
+function convertOrderToCart(orderData) {
+  // Construire les lignes de panier à partir des order_rows
+  const cartRows = [];
+
+  if (orderData.associations?.order_rows?.order_row) {
+    const orderRows = Array.isArray(orderData.associations.order_rows.order_row)
+      ? orderData.associations.order_rows.order_row
+      : [orderData.associations.order_rows.order_row];
+
+    for (const row of orderRows) {
+      cartRows.push({
+        id_product: row.product_id,
+        id_product_attribute: row.product_attribute_id || "0",
+        id_address_delivery: orderData.id_address_delivery,
+        id_customization: "0",
+        quantity: row.product_quantity,
+      });
+    }
+  }
+
+  // Structure du panier (identique à celle dans importCarts de dataImporter.js)
+  const cartData = {
+    id_address_delivery: orderData.id_address_delivery,
+    id_address_invoice:
+      orderData.id_address_invoice || orderData.id_address_delivery,
+    id_currency: orderData.id_currency || "1",
+    id_customer: orderData.id_customer,
+    id_guest: "0",
+    id_lang: orderData.id_lang || "1",
+    id_shop_group: orderData.id_shop_group || "1",
+    id_shop: orderData.id_shop || "1",
+    id_carrier: orderData.id_carrier || "1",
+    recyclable: orderData.recyclable || "0",
+    gift: orderData.gift || "0",
+    gift_message: "",
+    mobile_theme: orderData.mobile_theme || "0",
+    delivery_option: orderData.delivery_option || '{"8":"1,"}',
+    allow_seperated_package: orderData.allow_seperated_package || "0",
+    associations: {
+      cart_rows: { cart_row: cartRows },
+    },
+  };
+
+  return cartData;
+}
+
 /**
  * Fonction simple pour mettre à jour n'importe quelle ressource PrestaShop (version non-Hook)
  * @param {string} resourceType - Type de ressource (ex: 'product', 'category', etc.)

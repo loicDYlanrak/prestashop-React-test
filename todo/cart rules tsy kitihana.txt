@@ -217,3 +217,14 @@ dia rehef mivalider dia mandalo ecran anakiray miteny hoe ao daholo ve sa misy t
 tonga dia livre 
 
 verifier la quantite de stock   
+
+
+dans le dashboard principal ajouter le montant ht sur le total commande 
+chargement du panier il y a des problemes
+
+fonction pour get nom produit et nom values et nom de option_values
+
+fonction pour recupere les donnes de commandes 
+fonction pour multiplier les valeurs de quatite dans le commande 
+fonction pour recuperer le stock d un produit (idproduct , et id_attribute)
+fonction pour enregistrer un commande 

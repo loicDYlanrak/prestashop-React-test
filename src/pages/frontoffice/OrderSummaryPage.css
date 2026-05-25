@@ -288,3 +288,24 @@
     position: static;
   }
 }
+
+input {
+    width: 53%;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+    background: white;
+}
+
+.bouton {
+    width: 35%;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid #0088ff;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+    background: #dcf1ff;
+    color: #0088ff;
+}

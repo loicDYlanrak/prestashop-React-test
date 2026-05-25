@@ -44,6 +44,136 @@ export async function fetchPrestashop(url, options = {}) {
   }
 }
 
+export async function getOrder(idOrder, options = {}) {
+  try {
+    const response = await fetchPrestashop(`orders/${idOrder}`, options);
+    
+    if (!response.success || !response.data?.order) {
+      return {
+        success: false,
+        error: "Commande non trouvée",
+        data: null
+      };
+    }
+
+    const order = response.data.order;
+    
+    const idAddressDelivery = order.id_address_delivery?.["#cdata"] || order.id_address_delivery;
+    const idAddressInvoice = order.id_address_invoice?.["#cdata"] || order.id_address_invoice;
+    const idCart = order.id_cart?.["#cdata"] || order.id_cart;
+    const idCustomer = order.id_customer?.["#cdata"] || order.id_customer;
+    
+    const totalPaid = parseFloat(order.total_paid_tax_incl?.["#cdata"] || order.total_paid_tax_incl || 0);
+    const totalProducts = parseFloat(order.total_products?.["#cdata"] || order.total_products || 0);
+    
+    const orderRows = [];
+    let orderRowsData = order.associations?.order_rows?.order_row;
+    
+    if (orderRowsData) {
+      if (!Array.isArray(orderRowsData)) {
+        orderRowsData = [orderRowsData];
+      }
+      
+      for (const row of orderRowsData) {
+        orderRows.push({
+          product_id: row.product_id?.["#cdata"] || row.product_id,
+          product_attribute_id: row.product_attribute_id?.["#cdata"] || row.product_attribute_id || "0",
+          product_quantity: row.product_quantity?.["#cdata"] || row.product_quantity,
+        });
+      }
+    }
+    
+    const formattedOrder = {
+      id_address_delivery: idAddressDelivery,
+      id_address_invoice: idAddressInvoice,
+      id_cart: idCart,
+      id_currency: order.id_currency?.["#cdata"] || order.id_currency || "1",
+      id_lang: order.id_lang?.["#cdata"] || order.id_lang || "1",
+      id_customer: idCustomer,
+      id_carrier: order.id_carrier?.["#cdata"] || order.id_carrier || "1",
+      module: order.module?.["#cdata"] || order.module || "ps_cashondelivery",
+      valid: order.valid?.["#cdata"] || order.valid || "1",
+      id_shop_group: order.id_shop_group?.["#cdata"] || order.id_shop_group || "1",
+      id_shop: order.id_shop?.["#cdata"] || order.id_shop || "1",
+      payment: order.payment?.["#cdata"] || order.payment || "Paiement comptant à la livraison (Cash on delivery)",
+      recyclable: order.recyclable?.["#cdata"] || order.recyclable || "0",
+      gift: order.gift?.["#cdata"] || order.gift || "0",
+      gift_message: "",
+      mobile_theme: order.mobile_theme?.["#cdata"] || order.mobile_theme || "0",
+      total_paid: totalPaid.toFixed(8),
+      total_paid_real: "0",
+      total_products: totalProducts.toFixed(8),
+      total_products_wt: "0",
+      round_mode: order.round_mode?.["#cdata"] || order.round_mode || "2",
+      round_type: order.round_type?.["#cdata"] || order.round_type || "2",
+      conversion_rate: order.conversion_rate?.["#cdata"] || order.conversion_rate || "1",
+      associations: {
+        order_rows: { order_row: orderRows }
+      }
+    };
+    
+    return {
+      success: true,
+      data: formattedOrder,
+      originalData: order
+    };
+    
+  } catch (error) {
+    console.error(`Erreur getOrder ${idOrder}:`, error);
+    return {
+      success: false,
+      error: error.message,
+      data: null
+    };
+  }
+}
+
+export async function getProductStockByAttribute(productId, attributeId) {
+  try {
+    let filter = `&filter[id_product]=${productId}`;
+    if (attributeId && attributeId !== '0' && attributeId !== 0) {
+      filter += `&filter[id_product_attribute]=${attributeId}`;
+    } else {
+      filter += `&filter[id_product_attribute]=0`;
+    }
+    const response = await fetchPrestashop(`stock_availables`, {
+      urlRest: filter,
+    });
+    if (response.success && response.data?.stock_availables?.stock_available) {
+      const stocksData = response.data.stock_availables.stock_available;
+      const stockArray = Array.isArray(stocksData) ? stocksData : [stocksData];
+      const firstStock = stockArray[0];
+      const stockId = firstStock['@_id'] || firstStock.id?.["#cdata"] || firstStock.id;
+      if (stockId) {
+        const detailResponse = await fetchPrestashop(`stock_availables/${stockId}`);
+        if (detailResponse.data?.stock_available?.quantity) {
+          const quantity = detailResponse.data.stock_available.quantity["#cdata"] || detailResponse.data.stock_available.quantity;
+          return parseInt(quantity || 0);
+        }
+      }
+    }
+    return 0;
+  } catch (error) {
+    console.error("Error fetching product stock by attribute:", error);
+    return 0;
+  }
+}
+
+export async function getStockByStockAvailableId(stockAvailableId) {
+  try {
+    const response = await fetchPrestashop(`stock_availables/${stockAvailableId}`);
+    
+    if (response.data?.stock_available?.quantity) {
+      return parseInt(response.data.stock_available.quantity["#cdata"] || 0);
+    }
+    
+    return 0;
+  } catch (error) {
+    console.error("Error fetching stock by ID:", error);
+    return 0;
+  }
+};
+
 export function useFetchPrestashop(url, options = {}) {
   const apiKey = "2LA1668U53GC9T35AIT5Y3P7E8CKG7LL";
   const baseUrl = "http://localhost/prestashop2/api";
