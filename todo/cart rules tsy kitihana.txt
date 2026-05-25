@@ -262,18 +262,42 @@ page et crud de option_values
 
 creer fonction getOptionValues(id_product_options)
 creer fonction pour getProductIdByCategory("")
+creer une fonction qui retourne la quantite de stock available pour chaque declinaison 
 
 page et crud de products 
-ajouter bouton dupliquer products , avec page de resumer et de validation apres
+gestion image produit(Upload multiple images)
+ajouter apercu des images existant (si possible enleve des images)
+
+creer fonction getUrlImagesProducts(id_product) 
+dans getProducts ajouter les urls des images
+
+tester que l annulation enleve bien le stock reserver 
+tester que si une personne ne se connecte pas le panier revient a celui qui se reconnecte
+le panier se recharge meme lorsque on quitte la page 
 
 creer une fonction pour gerer les stock_availables 
 une produit peut avoir plusieur stock_availables 
 
-creer une fonction qui retourne la quantite de stock available pour chaque declinaison 
-
 page et crud de customers 
 page et crud de addresses
 
+ajouter fonctionnalite de modification de l utilisateur
+ajouter documentation pour faire des graphes
+ajouter systeme de produits favoris
+ajouter fonctionnalite de désactivation produit sans suppression
+Produits le plus vendu et ventes du jour le commande le plus elevee
+Clients fidèles: top acheteurs
+prix dépend de la catégorie du client
+Produit en promotion limitée
+La promo expire après une date:date_debut, date_fin
+systeme de réduction selon quantité acheter, promo sur catégorie
+dans mes commandes affichers le total 
+Quantité max par utilisateur: maximum 3 produits identiques
+Réservation:Un produit dans panier réserve le stock pendant 15 minutes.
+Systeme de corbeille: suppression récupérable
+
+
+ajouter bouton dupliquer products , avec page de resumer de dupliquer et de validation apres
 fonction pour verifier si un id_product a une remise 
 page pour gere les remises sur les produits 
 (assigner remises a produits)

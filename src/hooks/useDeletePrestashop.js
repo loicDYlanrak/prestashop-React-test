@@ -125,7 +125,10 @@ export async function deleteResource(resourceUrl, resourceId) {
       ? resourceUrl.slice(0, -3) + 'y'  
       : resourceUrl.endsWith('s') 
         ? resourceUrl.slice(0, -1)      
-        : resourceUrl;                   
+        : resourceUrl;            
+    if (resourceUrl.includes("images/products")) {
+      resourceTypeSingular = "image"
+    }       
     
     const url = `${DEFAULT_CONFIG.baseUrl}/${resourceUrl}/${resourceId}?ws_key=${DEFAULT_CONFIG.apiKey}`;
     
