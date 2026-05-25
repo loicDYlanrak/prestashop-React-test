@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable no-unused-vars */
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -12,7 +13,6 @@ export default function FrontHeader() {
   const navigate = useNavigate();
   const { cart, loadCartFromPrestashop } = useCart();
 
-  // Charger l'utilisateur depuis localStorage au montage
   useEffect(() => {
     const storedUser =
       localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -23,7 +23,6 @@ export default function FrontHeader() {
     }
   }, []);
 
-  // Charger le panier quand l'utilisateur change
   useEffect(() => {
     if (user && user.id && !user.isAnonymous && loadCartFromPrestashop) {
       // console.log("Effect triggered - Loading cart for user ID: ", user.id);
@@ -38,7 +37,7 @@ export default function FrontHeader() {
           setIsLoadingCart(false);
         });
     }
-  }, [user, loadCartFromPrestashop]);
+  }, [user]);
 
   useEffect(() => {
     const handleOpenModal = () => {

@@ -228,3 +228,4 @@ fonction pour recupere les donnes de commandes
 fonction pour multiplier les valeurs de quatite dans le commande 
 fonction pour recuperer le stock d un produit (idproduct , et id_attribute)
 fonction pour enregistrer un commande 
+

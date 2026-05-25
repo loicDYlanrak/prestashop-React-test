@@ -2,7 +2,7 @@
 /* eslint-disable react/prop-types */
 // contexts/CartContext.jsx
 import { createContext, useContext, useState, useEffect } from "react";
-import { fetchPrestashop } from "../hooks/useFetchPrestashop.js";
+import { fetchPrestashop, getOptionAndValueNames } from "../hooks/useFetchPrestashop.js";
 
 const CartContext = createContext();
 
@@ -19,7 +19,6 @@ export const CartProvider = ({ children }) => {
   const [cartTotal, setCartTotal] = useState(0);
 
   useEffect(() => {
-    // Charger le panier depuis localStorage
     const savedCart = localStorage.getItem("cart");
     if (savedCart) {
       setCart(JSON.parse(savedCart));
@@ -27,10 +26,8 @@ export const CartProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    // Sauvegarder le panier dans localStorage
     localStorage.setItem("cart", JSON.stringify(cart));
 
-    // Calculer le total
     const total = cart.reduce((sum, item) => {
       const price = item.specificPrice || item.price;
       return sum + price * item.quantity;
@@ -94,7 +91,6 @@ export const CartProvider = ({ children }) => {
 
   const loadCartFromPrestashop = async (customerId) => {
   try {
-    // Récupérer les paniers du client
     const responseCarts = await fetchPrestashop("carts", {
       urlRest: `filter[id_customer]=[${customerId}]`,
     });
@@ -110,7 +106,6 @@ export const CartProvider = ({ children }) => {
     
     const idsCarts = cartsArray.map((cart) => cart.id?.["#cdata"] || cart["@_id"]);
     
-    // Filtrer les paniers sans commande associée
     const idsCartWithoutOrder = [];
     for (const idCart of idsCarts) {
       const responseOrders = await fetchPrestashop("orders", {
@@ -129,14 +124,12 @@ export const CartProvider = ({ children }) => {
     // console.log("idsCartWithoutOrder: ", idsCartWithoutOrder);
     if (idsCartWithoutOrder.length === 0) return null;
     
-    // Prendre le dernier panier sans commande
     const lastCartId = idsCartWithoutOrder[idsCartWithoutOrder.length - 1];
     const responseCartDetails = await fetchPrestashop(`carts/${lastCartId}`);
     const cartDetails = responseCartDetails.data?.cart;
     
     if (!cartDetails || !cartDetails.associations?.cart_rows) return null;
     
-    // Transformer les produits du panier
     const cartRows = cartDetails.associations.cart_rows.cart_row;
     const cartItems = Array.isArray(cartRows) ? cartRows : [cartRows];
     
@@ -148,28 +141,28 @@ export const CartProvider = ({ children }) => {
       
       if (quantity <= 0) continue;
       
-      // Récupérer les détails du produit
       const productResponse = await fetchPrestashop(`products/${productId}`);
       const productData = productResponse.data?.product;
       
       if (!productData) continue;
       
-      // Récupérer la combinaison si elle existe
       let selectedCombination = null;
       if (combinationId && combinationId !== "0") {
         const comboResponse = await fetchPrestashop(`combinations/${combinationId}`);
         const comboData = comboResponse.data?.combination;
+        // console.log("comboData:", comboData)
+        const nameOption = await getOptionAndValueNames(combinationId)
+        console.log("nameOption:", nameOption)
         if (comboData) {
           selectedCombination = {
             id: parseInt(comboData.id?.["#cdata"]),
-            reference: comboData.reference?.["#cdata"] || "",
+            reference:  nameOption?.[0]?.groupName+"-"+nameOption?.[0]?.optionName || "",
             price: parseFloat(comboData.price?.["#cdata"] || 0),
             quantity: quantity
           };
         }
       }
       
-      // Transformer le produit (utilisez la même logique que dans ProductsList)
       const transformedProduct = await transformPrestashopProduct(productData);
       
       const itemId = selectedCombination
@@ -186,7 +179,7 @@ export const CartProvider = ({ children }) => {
         combinationPrice: selectedCombination?.price || 0,
       });
     }
-    
+    console.log("loadedCart:", loadedCart)
     if (loadedCart.length > 0) {
       setCart(loadedCart);
       return loadedCart;
@@ -199,13 +192,10 @@ export const CartProvider = ({ children }) => {
   }
 };
 
-// Ajouter la fonction utilitaire pour transformer un produit PrestaShop
 const transformPrestashopProduct = async (productData) => {
-  // Calculer le prix TTC
   const priceHT = parseFloat(productData.price?.["#cdata"] || 0);
   let taxRate = 20;
   
-  // Récupérer le taux de TVA
   const idTaxRuleGroup = productData?.id_tax_rules_group?.["#cdata"];
   if (idTaxRuleGroup) {
     try {
@@ -255,7 +245,6 @@ const transformPrestashopProduct = async (productData) => {
     }
   }
   
-  // Récupérer l'image
   let imageUrl = "https://placehold.co/400?text=Product";
   const imagesData = productData.associations?.images?.image;
   if (imagesData) {

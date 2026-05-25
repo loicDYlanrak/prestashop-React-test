@@ -174,6 +174,48 @@ export async function getStockByStockAvailableId(stockAvailableId) {
   }
 };
 
+export async function getOptionAndValueNames(combinationId) {
+  try {
+    const comboResponse = await fetchPrestashop(`combinations/${combinationId}`);
+    const comboData = comboResponse.data?.combination;
+    if (!comboData) {
+      console.error("Combinaison non trouvée");
+      return null;
+    }
+    const productOptionValues = comboData.associations?.product_option_values?.product_option_value;
+    if (!productOptionValues) {
+      console.log("Aucune option value pour cette combinaison");
+      return [];
+    }
+    const optionValuesArray = Array.isArray(productOptionValues) ? productOptionValues : [productOptionValues];
+    const results = await Promise.all(
+      optionValuesArray.map(async (optionValue) => {
+        const optionValueId = optionValue.id?.["#cdata"];
+        if (!optionValueId) return null;
+        const optionValueResponse = await fetchPrestashop(`product_option_values/${optionValueId}`);
+        const optionValueData = optionValueResponse.data?.product_option_value;
+        if (!optionValueData) return null;
+        const groupId = optionValueData.id_attribute_group?.["#cdata"];
+        if (!groupId) return null;
+        const groupResponse = await fetchPrestashop(`product_options/${groupId}`);
+        const groupData = groupResponse.data?.product_option;
+        return {
+          combinationId: combinationId,
+          optionValueId: optionValueId,
+          optionName: optionValueData.name?.language?.["#cdata"] || "Nom inconnu",
+          groupId: groupId,
+          groupName: groupData?.name?.language?.["#cdata"] || "Groupe inconnu"
+        };
+      })
+    );
+    const validResults = results.filter(result => result !== null);
+    return validResults;
+  } catch (error) {
+    console.error("Erreur lors de la récupération des noms:", error);
+    return null;
+  }
+};
+
 export function useFetchPrestashop(url, options = {}) {
   const apiKey = "2LA1668U53GC9T35AIT5Y3P7E8CKG7LL";
   const baseUrl = "http://localhost/prestashop2/api";
