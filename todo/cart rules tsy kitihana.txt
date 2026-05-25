@@ -229,3 +229,26 @@ fonction pour multiplier les valeurs de quatite dans le commande
 fonction pour recuperer le stock d un produit (idproduct , et id_attribute)
 fonction pour enregistrer un commande 
 
+
+ajouter dans le dupliquer commandes ajouter un modals de validation de la commande
+(votre commande a bien ete dupliquer)
+
+fonction pour recupere un cart : getCart()
+
+fonction pour recupere un produit : getProduct() retourne object product pret a etre save
+fonction pour ajouter un produit : si id_categorie n existe pas on le creer 
+
+page et crud de categories 
+
+page et crud de taxes 
+(assigner un produit a une taxe)
+
+page et crud de options 
+page et crud de options_values 
+
+page et crud de products 
+ajouter bouton dupliquer porduts , avec page de resumer et de validation apres
+
+fonction pour verifier si un id_product a une remise 
+page pour gere les remises sur les produits 
+(assigner remises a produits)

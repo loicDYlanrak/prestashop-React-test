@@ -287,3 +287,105 @@
     font-size: 16px;
   }
 }
+
+/* À AJOUTER - Section de duplication */
+.duplicate-section {
+  position: relative;
+  margin-top: 20px;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.close-duplicate {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #999;
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.close-duplicate:hover {
+  color: #e53e3e;
+  background-color: rgba(229, 62, 62, 0.1);
+}
+
+.duplicate-section > div:first-of-type {
+  font-weight: 600;
+  margin-bottom: 15px;
+  padding-right: 30px;
+  color: #1a1a2e;
+  font-size: 16px;
+}
+
+/* MODIFICATION - Order actions buttons */
+.order-actions-buttons {
+  flex-shrink: 0;
+}
+
+.order-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.order-form input {
+  width: 70px;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+
+.order-form input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+/* MODIFICATION - Responsive pour la duplication */
+@media (max-width: 768px) {
+  .order-form {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .order-form input {
+    width: 60px;
+  }
+  
+  .duplicate-section {
+    padding: 15px;
+  }
+  
+  .close-duplicate {
+    top: 8px;
+    right: 8px;
+    width: 25px;
+    height: 25px;
+    font-size: 20px;
+  }
+}

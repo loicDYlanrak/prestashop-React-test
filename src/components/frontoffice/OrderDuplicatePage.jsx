@@ -18,6 +18,7 @@ export default function OrderDuplicatePage({ order, nombre }) {
   const [stockErrors, setStockErrors] = useState([]);
   const [isCheckingStock, setIsCheckingStock] = useState(true);
   const [modifiedOrder, setModifiedOrder] = useState(null); 
+  const [orderSuccess, setOrderSuccess] = useState(false);
 
   const processOrderItemsFromArg = async (orderFromArg) => {
     try {
@@ -152,8 +153,27 @@ export default function OrderDuplicatePage({ order, nombre }) {
      const newOrder =await addOrder(orderFinall, {})
      if (newOrder.order.id) {
         const id= newOrder.order.id?.["#cdata"]
-        await deliverOrderById(id)
+        const deliverded = await deliverOrderById(id)
+        console.log("deliverded:", deliverded)
+        if(deliverded.success) {
+          setOrderSuccess(true)
+        }
      }
+  }
+  if (orderSuccess) {
+    return (
+      <div className="order-success-container">
+        <div className="order-success-card">
+          <div className="success-icon">✓</div>
+          <h1>Commande dupliquer !</h1>
+          <p>Votre commande a été livré avec succès.</p>
+          <div className="success-actions">
+            <Link to="/" className="btn-home">Retour à l&apos;accueil</Link>
+            <Link to="/products" className="btn-continue-shop">Continuer mes achats</Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -194,13 +214,13 @@ export default function OrderDuplicatePage({ order, nombre }) {
                           <div className="order-item-quantity">
                             Quantité: {item.quantity}
                           </div>
-                          <div className="order-item-unit-price">
+                          <div className="order-item-quantity">
                             Prix unitaire: {item.unit_price_tax_incl.toFixed(2)} €
                           </div>
-                          <div className="order-item-stock">
+                          <div className="order-item-quantity">
                             Stock disponible: {item.availableStock}
                             {item.hasStockError && (
-                              <span className="stock-warning"> ⚠️ Stock insuffisant</span>
+                              <span className="stock-warning"> Stock insuffisant</span>
                             )}
                           </div>
                         </div>
