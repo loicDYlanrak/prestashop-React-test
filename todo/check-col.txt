@@ -1,0 +1,14 @@
+il faut regler les problems dans data importer
+il faut enleve pour : 
+firstname, lastname (Clients)	Les chiffres (0-9), et la plupart des caractères spéciaux
+name (Produits, Catégories)	Les caractères de balises HTML (ex: < ou >) pour éviter les failles XSS, Certains caractères spéciaux : Les symboles comme #, {, }, [, ] ou * peuvent être rejetés selon la configuration stricte de votre base de données ou de l'API.
+address, (Adresses)	Les caractères spéciaux comme !, ?, _, ^, $, §. Les lettres, chiffres, espaces et tirets sont autorisés.
+
+et pour les colonnes suivant il faut coupe
+nom produits : 128 caractères.
+Nom de catégorie: 64 caractères.
+firstname (Prénom) : Maximum 32 caractères.
+lastname (Nom) : Maximum 32 caractères.
+address1 (Adresse ligne 1) : Maximum 128 caractères.
+
+enleve toutes les espaces dans le lien (par exemple link_rewrite)

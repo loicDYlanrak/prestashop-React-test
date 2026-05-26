@@ -287,6 +287,9 @@ page et crud de customers
 page et crud de addresses
 
 ajouter fonctionnalite de modification de l utilisateur
+
+nettoyer les noms et les addresses de chiffres pour eviter les problemes
+verifier que le login marche bien 
 ajouter documentation pour faire des graphes
 ajouter systeme de produits favoris
 ajouter fonctionnalite de désactivation produit sans suppression

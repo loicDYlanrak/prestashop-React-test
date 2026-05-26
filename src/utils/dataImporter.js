@@ -330,13 +330,64 @@ export async function applyOrderStateChanges(options = {}) {
   return results;
 }
 
+// ==================== FONCTIONS DE NETTOYAGE ====================
+
+/**
+ * Nettoie un nom (supprime chiffres et caractères spéciaux, garde lettres et espaces)
+ */
+const cleanName = (value) => {
+  if (!value) return "Default";
+  // Garde uniquement les lettres (accentuées incluses), espaces, tirets et apostrophes
+  let cleaned = value.replace(/[^a-zA-ZÀ-ÿ\s\-']/g, "");
+  // Supprime les chiffres
+  cleaned = cleaned.replace(/[0-9]/g, "");
+  // Supprime les caractères de balises HTML
+  cleaned = cleaned.replace(/[<>]/g, "");
+  // Nettoie les espaces multiples et trim
+  cleaned = cleaned.trim().replace(/\s+/g, " ");
+  return cleaned || "Default";
+};
+
+/**
+ * Nettoie un nom de produit ou catégorie (supprime caractères interdits)
+ */
+const cleanProductName = (value) => {
+  if (!value) return "Default Product";
+  // Supprime les balises HTML
+  let cleaned = value.replace(/[<>]/g, "");
+  // Supprime les caractères spéciaux interdits : # { } [ ] *
+  cleaned = cleaned.replace(new RegExp('[#{\\}\\[\\]*]', 'g'), "");
+  // Garde lettres, chiffres, espaces, tirets, apostrophes
+  cleaned = cleaned.replace(/[^a-zA-ZÀ-ÿ0-9\s\-']/g, "");
+  // Nettoie les espaces multiples et trim
+  cleaned = cleaned.trim().replace(/\s+/g, " ");
+  // Tronquer à 128 caractères
+  cleaned = cleaned.substring(0, 128);
+  return cleaned || "Default Product";
+};
+
+/**
+ * Nettoie une adresse (supprime caractères spéciaux interdits)
+ */
+const cleanAddress = (value) => {
+  if (!value) return "Adresse par défaut";
+  // Supprime les caractères spéciaux : ! ? _ ^ $ §
+  let cleaned = value.replace(/[!?_^$§]/g, "");
+  // Garde lettres, chiffres, espaces, tirets, points, virgules, apostrophes
+  cleaned = cleaned.replace(/[^a-zA-ZÀ-ÿ0-9\s\-,.']/g, "");
+  // Nettoie les espaces multiples et trim
+  cleaned = cleaned.trim().replace(/\s+/g, " ");
+  return cleaned || "Adresse par défaut";
+};
+
 // ==================== FILE 1 : PRODUITS ====================
 
 /**
  * Import des catégories
  */
 export async function importCategories(categories, options = {}) {
-  const notCached = categories.filter(
+  const cleanedCategories = categories.map(cat => cleanProductName(cat).substring(0, 64));
+  const notCached = cleanedCategories.filter(
     (cat) => !entityCache.categories.has(cat),
   );
   const cached = categories.filter((cat) => entityCache.categories.has(cat));
@@ -359,7 +410,7 @@ export async function importCategories(categories, options = {}) {
           is_root_category: 0,
           name: categoryName,
           description: categoryName,
-          link_rewrite: categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          link_rewrite: categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/\s/g, ""),
           active: 1,
         };
 
@@ -582,7 +633,9 @@ export async function importProducts(productsData, options = {}) {
     10,
     async (product) => {
       try {
-        const categoryId = entityCache.categories.get(product.categorie_name);
+        const cleanCategoryName = cleanProductName(product.categorie_name);
+        const categoryId = entityCache.categories.get(cleanCategoryName);
+        const cleanProductTitle = cleanProductName(product.nom);
         const formattedTaxe = product.taxe.toLocaleString("fr-FR", {
           minimumFractionDigits: 2,
         });
@@ -594,12 +647,12 @@ export async function importProducts(productsData, options = {}) {
         const taxRuleGroupId = entityCache.taxRuleGroups.get(searchKey);
         const productData = {
           reference: product.reference,
-          name: product.nom,
-          description: product.nom,
-          meta_description: product.nom,
+          name: cleanProductTitle,
+          description: cleanProductTitle,
+          meta_description: cleanProductTitle,
           meta_keywords: "",
           meta_title: "",
-          link_rewrite: product.nom.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          link_rewrite: product.nom.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/\s/g, ""),
           price: product.prix_ht.toFixed(8),
           wholesale_price: product.prix_achat.toFixed(8),
           active: 1,
@@ -1285,9 +1338,15 @@ export async function importCustomers(customersData, options = {}) {
     9,
     async (customer) => {
       try {
+        const fullName = cleanName(customer.nom || "");
+        const nameParts = fullName.split(" ");
+        let firstName = nameParts[0] || "Client";
+        let lastName = nameParts.slice(1).join(" ") || "Unknown";
+        firstName = firstName.substring(0, 32);
+        lastName = lastName.substring(0, 32);
         const customerData = {
-          firstname: customer.nom?.split(" ")[0] || "Client",
-          lastname: customer.nom || "Unknown",
+          firstname: firstName,
+          lastname: lastName,
           email: customer.email,
           passwd: customer.mot_de_passe || "azerty123",
           active: "1",
@@ -1344,10 +1403,10 @@ export async function importAddresses(
     }
 
     const alias = `Adresse_${customer.nom?.replace(/\s/g, "_") || customerId?.["#cdata"]}`;
-
+    const cleanAlias = cleanAddress(alias);
     if (entityCache.addresses.has(alias)) {
       results.push({
-        alias,
+        cleanAlias,
         id: entityCache.addresses.get(alias),
         cached: true,
       });
@@ -1366,6 +1425,10 @@ export async function importAddresses(
     9,
     async (addressObj) => {
       try {
+        const cleanFirstName = cleanName(addressObj.customer.nom?.split("Client")[0] || "Client").substring(0, 32);
+        const cleanLastName = cleanName(addressObj.customer.nom?.split("Client").slice(1).join(" ") || "Unknown").substring(0, 32);
+        let cleanAddress1 = cleanAddress(addressObj.customer.adresse || "Adresse par défaut");
+        cleanAddress1 = cleanAddress1.substring(0, 128);
         const addressData = {
           id_customer: addressObj.customerId?.["#cdata"],
           id_manufacturer: "0",
@@ -1375,11 +1438,10 @@ export async function importAddresses(
           id_state: "0",
           alias: " ",
           company: "",
-          lastname:
-            addressObj.customer.nom?.split("Client").slice(1).join(" ") || "Unknown",
-          firstname: addressObj.customer.nom?.split("Client")[0] || "Client",
+          lastname: cleanLastName,
+          firstname: cleanFirstName,
           vat_number: "",
-          address1: addressObj.customer.adresse || "Adresse par défaut",
+          address1: cleanAddress1,
           address2: "",
           postcode: "10000",
           city: "Ville",

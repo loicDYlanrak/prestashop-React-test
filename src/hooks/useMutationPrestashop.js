@@ -632,21 +632,20 @@ export async function updateResource(
     baseUrl: options.baseUrl || DEFAULT_CONFIG.baseUrl,
   };
 
-  const endpoint = RESOURCE_ENDPOINTS[resourceType];
+  let endpoint = RESOURCE_ENDPOINTS[resourceType];
   const multilangFields = MULTILANG_FIELDS[resourceType] || [];
   const languageId = options.languageId || 1;
-
   if (!endpoint) {
     throw new Error(
       `Resource type "${resourceType}" not supported. Supported types: ${Object.keys(RESOURCE_ENDPOINTS).join(", ")}`,
     );
   }
-
+  
   const url = `${config.baseUrl}/${endpoint}/${resourceId}?ws_key=${config.apiKey}`;
-
+  
   const prestashopData = {
     prestashop: {
-      [endpoint]: { ...resourceData, id: resourceId },
+      [resourceType]: { ...resourceData, id: resourceId },
     },
   };
 

@@ -4,12 +4,15 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./FrontHeader.css";
 import UserSelectionModal from "./UserSelectionModal";
+import UserProfileModal from "./UserProfileModal";
 import { useCart } from "../../context/CartContext";
 
 export default function FrontHeader() {
   const [showUserModal, setShowUserModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [user, setUser] = useState(null);
   const [isLoadingCart, setIsLoadingCart] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const navigate = useNavigate();
   const { cart, loadCartFromPrestashop } = useCart();
 
@@ -19,17 +22,14 @@ export default function FrontHeader() {
     if (storedUser) {
       const parsedUser = JSON.parse(storedUser);
       setUser(parsedUser);
-      // console.log("User loaded from storage: ", parsedUser);
     }
   }, []);
 
   useEffect(() => {
     if (user && user.id && !user.isAnonymous && loadCartFromPrestashop) {
-      // console.log("Effect triggered - Loading cart for user ID: ", user.id);
       setIsLoadingCart(true);
       loadCartFromPrestashop(user.id)
         .then(() => {
-          // console.log("Cart loaded successfully");
           setIsLoadingCart(false);
         })
         .catch((error) => {
@@ -52,34 +52,46 @@ export default function FrontHeader() {
   }, []);
 
   const handleUserSelect = (userData) => {
-    // console.log("handleUserSelect called with: ", userData);
     setShowUserModal(false);
-
+    
     if (userData.isAnonymous) {
       sessionStorage.setItem(
         "user",
-        JSON.stringify({ ...userData, isAnonymous: true }),
+        JSON.stringify({ ...userData, isAnonymous: true, remember: false })
       );
       localStorage.removeItem("user");
     } else {
-      localStorage.setItem("user", JSON.stringify(userData));
+      localStorage.setItem(
+        "user",
+        JSON.stringify({ ...userData, isAnonymous: false, remember: true })
+      );
       sessionStorage.removeItem("user");
     }
     
     setUser(userData);
   };
 
+  const handleUserUpdate = (updatedUser) => {
+    setUser(updatedUser);
+  };
+
   const handleLogout = () => {
-    // console.log("Logging out");
     setUser(null);
     localStorage.removeItem("user");
     sessionStorage.removeItem("user");
     sessionStorage.removeItem("cart");
     localStorage.removeItem("cart");
+    setShowUserMenu(false);
     navigate("/");
   };
 
+  const handleProfileClick = () => {
+    setShowUserMenu(false);
+    setShowProfileModal(true);
+  };
+
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  
   return (
     <>
       <header className="front-header">
@@ -113,16 +125,34 @@ export default function FrontHeader() {
                 <span className="cart-count">{cartItemCount}</span>
               )}
             </Link>
+            
             {user ? (
-              <div className="user-menu">
-                <span className="user-name">
-                  {user.isAnonymous
-                    ? " Invité"
-                    : `${user.firstname} ${user.lastname}`}
-                </span>
-                <button onClick={handleLogout} className="btn-logout-front">
-                  Déconnexion
+              <div className="user-menu-container">
+                <button 
+                  className="user-menu-trigger"
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                >
+                  <span className="user-avatar-2">
+                    {user.firstname?.charAt(0)}{user.lastname?.charAt(0)}
+                  </span>
+                  <span className="user-name-2">
+                    {user.isAnonymous
+                      ? `Invité${user.firstname ? ` ${user.firstname}` : ""}`
+                      : `${user.firstname} ${user.lastname}`}
+                  </span>
+                  <span className="user-menu-arrow">▼</span>
                 </button>
+                
+                {showUserMenu && (
+                  <div className="user-menu-dropdown">
+                    <button onClick={handleProfileClick} className="dropdown-item">
+                      Mon profil
+                    </button>
+                    <button onClick={handleLogout} className="dropdown-item logout">
+                      Déconnexion
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <button
@@ -140,6 +170,13 @@ export default function FrontHeader() {
         isOpen={showUserModal}
         onClose={() => setShowUserModal(false)}
         onUserSelect={handleUserSelect}
+      />
+
+      <UserProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        user={user}
+        onUserUpdate={handleUserUpdate}
       />
     </>
   );
