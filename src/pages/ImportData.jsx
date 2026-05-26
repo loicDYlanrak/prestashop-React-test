@@ -12,18 +12,12 @@ export default function ImportData() {
   const [file1, setFile1] = useState(null);
   const [file2, setFile2] = useState(null);
   const [file3, setFile3] = useState(null);
-  const [importer, setImporter] = useState(true);
+  const [importer, setImporter] = useState(false);
   const [zipFile, setZipFile] = useState(null);
 
-  const handleOnChange = () => {
-    if (importer == true) {
-      setImporter(false)
-      console.log("importer",importer)
-    } else {
-       setImporter(true)
-      console.log("importer",importer)
-    }
-   
+  const handleOnChange = (e) => {
+    setImporter(e.target.checked);
+    console.log("importer", importer);
   }
 
   // États pour l'import
@@ -160,7 +154,7 @@ export default function ImportData() {
               }}
             ></span>
           </div>
-          <div className="panel-body ie-form">
+          <div className="ie-form panel-body-2">
             {/* Fichier 1 */}
             <div className="form-group">
               <label>
@@ -203,8 +197,8 @@ export default function ImportData() {
               />
             </div>
             <div className="form-group">
-              <label htmlFor="CaseACocher">Cocher pour ne pas importer d image</label>
-              <input type="checkbox" name="importer" id="importer" onChange={handleOnChange} />
+              <label htmlFor="importer">Cocher pour ne pas importer d image</label>
+              <input type="checkbox" name="importer" id="importer" onChange={handleOnChange} checked={importer}/>
             </div>
           </div>
         </div>

@@ -6,17 +6,20 @@ import "./FrontHeader.css";
 import UserSelectionModal from "./UserSelectionModal";
 import UserProfileModal from "./UserProfileModal";
 import { useCart } from "../../context/CartContext";
+import LoginModal from "./LoginModal";
 
 export default function FrontHeader() {
   const [showUserModal, setShowUserModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [successLogin, setSuccessLogin] = useState(false);
   const [user, setUser] = useState(null);
   const [isLoadingCart, setIsLoadingCart] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const navigate = useNavigate();
   const { cart, loadCartFromPrestashop } = useCart();
 
-  useEffect(() => {
+  useEffect(() => { 
     const storedUser =
       localStorage.getItem("user") || sessionStorage.getItem("user");
     if (storedUser) {
@@ -53,21 +56,21 @@ export default function FrontHeader() {
 
   const handleUserSelect = (userData) => {
     setShowUserModal(false);
-    
+
     if (userData.isAnonymous) {
       sessionStorage.setItem(
         "user",
-        JSON.stringify({ ...userData, isAnonymous: true, remember: false })
+        JSON.stringify({ ...userData, isAnonymous: true, remember: false }),
       );
       localStorage.removeItem("user");
     } else {
       localStorage.setItem(
         "user",
-        JSON.stringify({ ...userData, isAnonymous: false, remember: true })
+        JSON.stringify({ ...userData, isAnonymous: false, remember: true }),
       );
       sessionStorage.removeItem("user");
     }
-    
+
     setUser(userData);
   };
 
@@ -91,7 +94,7 @@ export default function FrontHeader() {
   };
 
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  
+
   return (
     <>
       <header className="front-header">
@@ -125,15 +128,16 @@ export default function FrontHeader() {
                 <span className="cart-count">{cartItemCount}</span>
               )}
             </Link>
-            
+
             {user ? (
               <div className="user-menu-container">
-                <button 
+                <button
                   className="user-menu-trigger"
                   onClick={() => setShowUserMenu(!showUserMenu)}
                 >
                   <span className="user-avatar-2">
-                    {user.firstname?.charAt(0)}{user.lastname?.charAt(0)}
+                    {user.firstname?.charAt(0)}
+                    {user.lastname?.charAt(0)}
                   </span>
                   <span className="user-name-2">
                     {user.isAnonymous
@@ -142,25 +146,40 @@ export default function FrontHeader() {
                   </span>
                   <span className="user-menu-arrow">▼</span>
                 </button>
-                
+
                 {showUserMenu && (
                   <div className="user-menu-dropdown">
-                    <button onClick={handleProfileClick} className="dropdown-item">
+                    <button
+                      onClick={handleProfileClick}
+                      className="dropdown-item"
+                    >
                       Mon profil
                     </button>
-                    <button onClick={handleLogout} className="dropdown-item logout">
+                    <button
+                      onClick={handleLogout}
+                      className="dropdown-item logout"
+                    >
                       Déconnexion
                     </button>
                   </div>
                 )}
               </div>
             ) : (
-              <button
-                className="btn-login"
-                onClick={() => setShowUserModal(true)}
-              >
-                Se connecter / Choisir un utilisateur
-              </button>
+              <div className="selec">
+                <button
+                  className="btn-login"
+                  onClick={() => setShowUserModal(true)}
+                >
+                  Se connecter / Choisir un utilisateur
+                </button>
+                <button
+                  style={{display:"none"}}
+                  className="btn-login"
+                  onClick={() => setShowLoginModal(true)}
+                >
+                  Se login
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -177,6 +196,11 @@ export default function FrontHeader() {
         onClose={() => setShowProfileModal(false)}
         user={user}
         onUserUpdate={handleUserUpdate}
+      />
+
+      <LoginModal 
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
       />
     </>
   );

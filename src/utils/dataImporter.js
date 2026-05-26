@@ -2025,6 +2025,7 @@ export async function runFullImport(
   callbacks = {},
   apiOptions = {},
 ) {
+  console.log("importer:", importer)
   const { onProgress, onStepComplete, onError } = callbacks;
 
   const results = {
@@ -2112,7 +2113,8 @@ export async function runFullImport(
     if (onStepComplete) onStepComplete("file2", results.file2);
 
     // ==================== ZIP ====================
-    if (importer == false) {
+    
+    if (importer === false) {
       if (onProgress) onProgress("Traitement des images...", 70);
 
       if (parsedData?.zip?.images) {
